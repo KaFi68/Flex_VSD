@@ -1,0 +1,18 @@
+# Thong tin nhay cam - KHONG commit. Copy tu file .example va tu dien gia tri that.
+vsd-flex-automation/config/email.config.json
+vsd-flex-automation/config/auth.config.json
+
+# Cau hinh runtime (sinh ra khi chay, khong phai source code)
+vsd-flex-automation/config/old-codes.config.json
+
+# Du lieu mock/test sinh ra tu cac script (snapshot VSD, bao cao diff, Flex mock store...)
+# - deu co the tao lai bang cach chay Fetch-VsdSecurities.ps1 / Seed-FlexMock.ps1
+vsd-flex-automation/data/snapshots/*.json
+vsd-flex-automation/data/reports/*.json
+vsd-flex-automation/data/flex-mock/*.json
+vsd-flex-automation/logs/*
+
+!vsd-flex-automation/data/snapshots/.gitkeep
+!vsd-flex-automation/data/reports/.gitkeep
+!vsd-flex-automation/data/flex-mock/.gitkeep
+!vsd-flex-automation/logs/.gitkeep

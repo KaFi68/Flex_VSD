@@ -1,0 +1,7 @@
+{
+  "SmtpServer": "smtp.gmail.com",
+  "Port": 587,
+  "From": "dia-chi-gmail-dung-de-gui@gmail.com",
+  "Password": "app-password-16-ky-tu-tu-google",
+  "To": "nguyencaophi8969@gmail.com"
+}
