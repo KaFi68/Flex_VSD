@@ -78,6 +78,11 @@ function Parse-VsdSecuritiesRows {
         $cells = [regex]::Matches($row.Groups[1].Value, '<td[^>]*>(.*?)</td>', [System.Text.RegularExpressions.RegexOptions]::Singleline)
         if ($cells.Count -lt 8) { continue }  # skip header/malformed rows
 
+        # Cell[1] (Ma CK) chua link dang <a href="/s-detail/1234">AAA</a> - lay ID de sau nay
+        # fetch trang chi tiet (co Ten TCPH rieng biet, Menh gia, Tong so dang ky...)
+        $detailIdMatch = [regex]::Match($cells[1].Groups[1].Value, '/s-detail/(\d+)')
+        $detailId = if ($detailIdMatch.Success) { $detailIdMatch.Groups[1].Value } else { $null }
+
         $cellText = $cells | ForEach-Object {
             $raw = $_.Groups[1].Value
             $stripped = [regex]::Replace($raw, '<[^>]+>', '').Trim()
@@ -92,6 +97,7 @@ function Parse-VsdSecuritiesRows {
             Market            = $cellText[5]   # "Noi giao dich" - relevant for chuyen san
             ManagementArea    = $cellText[6]
             Status            = $cellText[7]
+            DetailId          = $detailId
         })
     }
     return ,$results   # comma operator: giu nguyen la mot List, tranh bi PowerShell "unroll" thanh $null khi rong

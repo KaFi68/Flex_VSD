@@ -38,6 +38,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 Import-Module (Join-Path $PSScriptRoot "Modules\FlexMockStore.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "Modules\VsdDetail.psm1") -Force
+
+function Get-NoiQuanLyVSDText {
+    param([string]$ManagementArea)
+    if ($ManagementArea -like "*Chi nhánh*") { return "Trung tâm lưu ký chứng khoán Việt Nam - Chi nhánh TP Hồ Chí Minh" }
+    return "Trung tâm lưu ký chứng khoán Việt Nam"
+}
 
 if (-not (Test-Path $AuthConfigPath)) {
     throw "Khong tim thay $AuthConfigPath. Can file nay de biet tai khoan dang nhap demo."
@@ -152,7 +159,7 @@ function Get-SyntheticId {
 function Build-NameChangesTable {
     param($Items)
     if (-not $Items -or $Items.Count -eq 0) {
-        return "<tr><td colspan='4' style='text-align:center;color:#888'>Không có mã nào cần cập nhật tên</td></tr>"
+        return "<tr><td colspan='3' style='text-align:center;color:#888'>Không có mã nào cần cập nhật tên</td></tr>"
     }
     ($Items | ForEach-Object {
         $tc = $_.TraCuuDoiTen
@@ -160,7 +167,6 @@ function Build-NameChangesTable {
             <td>$(Enc $_.Code)</td>
             <td>$(Enc $tc.TenCu)</td>
             <td><b>$(Enc $tc.TenMoi)</b></td>
-            <td><a class='minibtn' href='/?view=$([System.Uri]::EscapeDataString($_.Code))&from=ttchung'>Xem</a></td>
             <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
@@ -173,52 +179,91 @@ function Build-TTChungTable {
     }
     ($Items | ForEach-Object {
         $t = $_.Tabs.TTChung
-        $maGiaoDich = Get-SyntheticId -Code $_.Code -Seed 17
         $nguon = if ($_.Source) { Enc $_.Source } else { "Mã mới" }
         "<tr>
             <td>$(Enc $_.Code)</td>
-            <td>$maGiaoDich</td>
             <td>$(Enc $t.TenTCPH)</td>
             <td>$(Enc $t.TenChungKhoan)</td>
+            <td>$(Enc $t.TenGiaoDichTiengAnh)</td>
+            <td>$(Enc $t.TenTiengAnh)</td>
             <td>$(Enc $t.ThiTruong)</td>
             <td>$(Enc $t.NoiQuanLyVSD)</td>
             <td>$(Enc $t.MaISIN)</td>
             <td><span class='src'>$nguon</span></td>
-            <td><a class='minibtn' href='/?view=$([System.Uri]::EscapeDataString($_.Code))&from=ttchung'>Xem</a></td>
             <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
 }
 
-function Build-ChungKhoanTable {
-    param($Items)
+function Build-ChungKhoanTable-Detailed {
+    # Bang chi tiet day du - dung chung cho cac loai DA co bang mapping ro rang
+    # (hien: Co phieu va Chung chi quy - 2 loai nay dung chung 1 rule, chi khac
+    # "Loai chung khoan").
+    param($Items, [string]$EmptyLabel = "chứng khoán")
     if (-not $Items -or $Items.Count -eq 0) {
-        return "<tr><td colspan='9' style='text-align:center;color:#888'>Không có mã nào đang chờ duyệt Chứng khoán</td></tr>"
+        return "<tr><td colspan='10' style='text-align:center;color:#888'>Không có mã $EmptyLabel nào đang chờ duyệt Chứng khoán</td></tr>"
     }
     ($Items | ForEach-Object {
         if ($_.Tabs -and $_.Tabs.ChungKhoan) {
             $c = $_.Tabs.ChungKhoan
             $noiGdCell = Enc $c.NoiGD
             $loai = Enc $c.LoaiChungKhoan
+            $loaiTP = Enc $c.LoaiTraiPhieu
+            $phiLuuKy = Enc $c.CoThuPhiLuuKy
             $menhGia = Enc $c.MenhGia
+            $nguon = if ($_.Source) { "$(Enc $_.Source) (từ tab TT chung)" } else { "Mã mới (từ tab TT chung)" }
+        } else {
+            # Ma chuyen san (da co san tren Flex) - suy ra Loai chung khoan tu chinh
+            # StockType da luu tren record, khong hardcode 1 loai co dinh.
+            $tc = $_.TraCuuChuyenSan
+            $ckTmp = New-ChungKhoanTabData -Code $_.Code -Market $_.Market -StockType $_.StockType -MenhGiaVSD $null
+            $noiGdCell = "$(Enc $tc.NoiGDCu) &rarr; <b>$(Enc $tc.NoiGDMoi)</b>"
+            $loai = Enc $ckTmp.LoaiChungKhoan
+            $loaiTP = Enc $ckTmp.LoaiTraiPhieu
+            $phiLuuKy = Enc $ckTmp.CoThuPhiLuuKy
+            $menhGia = "-"
+            $nguon = "Chuyển sàn (mã đã có trên Flex)"
+        }
+        "<tr>
+            <td>$(Enc $_.Code)</td>
+            <td>$(Enc $_.Name)</td>
+            <td>$noiGdCell</td>
+            <td>$loai</td>
+            <td>$loaiTP</td>
+            <td>$phiLuuKy</td>
+            <td>$menhGia</td>
+            <td><span class='src'>$nguon</span></td>
+            <td><a class='minibtn' href='/?view=$([System.Uri]::EscapeDataString($_.Code))&from=ck'>Xem</a></td>
+            <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
+        </tr>"
+    }) -join "`n"
+}
+
+function Build-ChungKhoanTable-Generic {
+    # Bang rut gon dung tam cho cac loai CHUA co bang mapping chi tiet (Chung chi quy /
+    # Tin phieu / Trai phieu / Chung quyen). Se bo sung day du truong rieng khi co yeu cau.
+    param($Items, [string]$CategoryLabel)
+    if (-not $Items -or $Items.Count -eq 0) {
+        return "<tr><td colspan='6' style='text-align:center;color:#888'>Không có mã $CategoryLabel nào đang chờ duyệt Chứng khoán</td></tr>"
+    }
+    ($Items | ForEach-Object {
+        if ($_.Tabs -and $_.Tabs.ChungKhoan) {
+            $c = $_.Tabs.ChungKhoan
+            $noiGdCell = Enc $c.NoiGD
+            $loai = Enc $c.LoaiChungKhoan
             $nguon = if ($_.Source) { "$(Enc $_.Source) (từ tab TT chung)" } else { "Mã mới (từ tab TT chung)" }
         } else {
             $tc = $_.TraCuuChuyenSan
             $noiGdCell = "$(Enc $tc.NoiGDCu) &rarr; <b>$(Enc $tc.NoiGDMoi)</b>"
             $loai = Enc $_.StockType
-            $menhGia = "-"
             $nguon = "Chuyển sàn (mã đã có trên Flex)"
         }
-        $maGiaoDich = Get-SyntheticId -Code $_.Code -Seed 17
         "<tr>
             <td>$(Enc $_.Code)</td>
-            <td>$maGiaoDich</td>
             <td>$(Enc $_.Name)</td>
             <td>$noiGdCell</td>
             <td>$loai</td>
-            <td>$menhGia</td>
             <td><span class='src'>$nguon</span></td>
-            <td><a class='minibtn' href='/?view=$([System.Uri]::EscapeDataString($_.Code))&from=ck'>Xem</a></td>
             <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
@@ -314,8 +359,8 @@ function Build-CkViewHtml {
         }
         @"
 <table class='mini'>
-<tr><td>Tên TCPH</td><td>$(Enc $t.TenTCPH)</td></tr>
-<tr><td>Tên chứng khoán</td><td>$(Enc $t.TenChungKhoan)</td></tr>
+<tr><td>Tổ chức phát hành</td><td>$(Enc $t.TenTCPH)</td></tr>
+<tr><td>Tên giao dịch</td><td>$(Enc $t.TenChungKhoan)</td></tr>
 $enRows
 <tr><td>Thị trường</td><td>$(Enc $t.ThiTruong)</td></tr>
 <tr><td>Nơi quản lý tại VSD</td><td>$(Enc $t.NoiQuanLyVSD)</td></tr>
@@ -344,6 +389,8 @@ $enRows
 <table class='mini'>
 <tr><td>Nơi GD</td><td>$(Enc $c.NoiGD)</td></tr>
 <tr><td>Loại chứng khoán</td><td>$(Enc $c.LoaiChungKhoan)</td></tr>
+<tr><td>Loại trái phiếu</td><td>$(Enc $c.LoaiTraiPhieu)</td></tr>
+<tr><td>Có thu phí lưu ký không</td><td>$(Enc $c.CoThuPhiLuuKy)</td></tr>
 <tr><td>Mệnh giá</td><td>$(Enc $c.MenhGia)</td></tr>
 </table>
 "@
@@ -462,6 +509,8 @@ function Invoke-OldCodesBatch {
     }
 
     foreach ($code in $batch) {
+        $detail = $null
+        if ($code.DetailId) { $detail = Get-VsdSecurityDetail -DetailId $code.DetailId }
         $now = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
         $flex.Add([pscustomobject]@{
             Code            = $code.Code
@@ -470,14 +519,23 @@ function Invoke-OldCodesBatch {
             StockType       = $code.StockType
             Market          = $code.Market
             ManagementArea  = $code.ManagementArea
+            DetailId        = $code.DetailId
+            MenhGiaVSD      = if ($detail) { $detail.MenhGia } else { $null }
+            TongSoDangKyVSD = if ($detail) { $detail.TongSoDangKy } else { $null }
             Status          = "Chờ duyệt TT chung"
             Source          = "Mã cũ (tồn đọng)"
             StatusChangedAt = $now
-            LichSuDuyet     = @([pscustomobject]@{ ThoiGian = $now; HanhDong = "Nhap tab TT chung (ma cu ton dong, qua UI)"; TrangThai = "Chờ duyệt TT chung" })
+            LichSuDuyet     = @([pscustomobject]@{ ThoiGian = $now; HanhDong = "Nhap tab TT chung (ma cu ton dong, qua UI, Ten TCPH tu trang chi tiet VSD)"; TrangThai = "Chờ duyệt TT chung" })
             Tabs            = [pscustomobject]@{
                 TTChung = [pscustomobject]@{
-                    MaCK = $code.Code; TenTCPH = $code.Name; TenChungKhoan = $code.Name
-                    ThiTruong = "Trong nước"; NoiQuanLyVSD = "Trung tâm lưu ký chứng khoán Việt Nam"; MaISIN = $code.IsinCode
+                    MaCK = $code.Code
+                    TenTCPH = if ($detail -and $detail.TenTCPH) { $detail.TenTCPH } else { $code.Name }
+                    TenChungKhoan = if ($detail -and $detail.TenChungKhoan) { $detail.TenChungKhoan } else { $code.Name }
+                    TenGiaoDichTiengAnh = "Đang bổ sung"
+                    TenTiengAnh = "Đang bổ sung"
+                    ThiTruong = "Trong nước"
+                    NoiQuanLyVSD = Get-NoiQuanLyVSDText -ManagementArea $code.ManagementArea
+                    MaISIN = $code.IsinCode
                 }
                 ChungKhoan = $null
                 TTCK       = $null
@@ -620,7 +678,21 @@ function Build-Html {
 
     $ttChungRows      = Build-TTChungTable -Items $waitingTTChung
     $nameChangeRows   = Build-NameChangesTable -Items $waitingNameChange
-    $chungKhoanRows   = Build-ChungKhoanTable -Items $waitingChungKhoan
+
+    # Chia ma dang cho duyet Chung khoan thanh 5 nhom theo dung 5 sheet trong Excel
+    # "Cach thuc khai ma chung khoan" (Co phieu / Chung chi quy / Tin phieu / Trai
+    # phieu / Chung quyen). Hien chi Co phieu co day du bang mapping rieng.
+    $ckByCategory = @{ CoPhieu = @(); ChungChiQuy = @(); TinPhieu = @(); TraiPhieu = @(); ChungQuyen = @() }
+    foreach ($item in $waitingChungKhoan) {
+        $cat = Get-SecurityCategory -StockType $item.StockType
+        $ckByCategory[$cat] += $item
+    }
+    $ckCoPhieuRows     = Build-ChungKhoanTable-Detailed -Items $ckByCategory.CoPhieu -EmptyLabel "cổ phiếu"
+    $ckChungChiQuyRows = Build-ChungKhoanTable-Detailed -Items $ckByCategory.ChungChiQuy -EmptyLabel "chứng chỉ quỹ"
+    $ckTinPhieuRows    = Build-ChungKhoanTable-Generic -Items $ckByCategory.TinPhieu -CategoryLabel "tín phiếu"
+    $ckTraiPhieuRows   = Build-ChungKhoanTable-Generic -Items $ckByCategory.TraiPhieu -CategoryLabel "trái phiếu"
+    $ckChungQuyenRows  = Build-ChungKhoanTable-Generic -Items $ckByCategory.ChungQuyen -CategoryLabel "chứng quyền"
+
     $ksAllStatuses    = Get-AllKiemSoatStatuses -Flex $flex
     $ksFilterHtml     = Build-KiemSoatFilterHtml -CodeFilter $KsCodeFilter -StatusFilter $KsStatusFilter -AllStatuses $ksAllStatuses
     $kiemSoatRows     = Build-KiemSoatTable -Flex $flex -CodeFilter $KsCodeFilter -StatusFilter $KsStatusFilter
@@ -630,17 +702,15 @@ function Build-Html {
     $countTT = @($waitingTTChung).Count
     $countNameChange = @($waitingNameChange).Count
     $countCK = @($waitingChungKhoan).Count
+    $countCkCoPhieu     = @($ckByCategory.CoPhieu).Count
+    $countCkChungChiQuy = @($ckByCategory.ChungChiQuy).Count
+    $countCkTinPhieu    = @($ckByCategory.TinPhieu).Count
+    $countCkTraiPhieu   = @($ckByCategory.TraiPhieu).Count
+    $countCkChungQuyen  = @($ckByCategory.ChungQuyen).Count
     $countDeleted = @($deletedItems).Count
     $countOldBacklog = @(Get-OldCodesBacklog).Count
 
-    # "Xem" bam tu tab TT chung -> hien chi tiet ngay trong tab TT chung
-    $ttChungViewBlock = ""
-    if (-not [string]::IsNullOrWhiteSpace($ViewCode) -and $ViewFrom -eq "ttchung") {
-        $viewItem = $flex | Where-Object { $_.Code -eq $ViewCode } | Select-Object -First 1
-        $ttChungViewBlock = Build-CkViewHtml -Item $viewItem -CloseHref "/?tab=ttchung"
-    }
-
-    # Cac truong hop con lai (Sua, Xem tu tab Chung khoan, hoac tim kiem) hien trong tab Chung khoan
+    # Xem/Sua chi truy cap qua tim kiem o tab Chung khoan (khong con nut Xem rieng tren tab TT chung)
     $ckSearchBlock = ""
     if (-not [string]::IsNullOrWhiteSpace($EditCode)) {
         $editItem = $flex | Where-Object { $_.Code -eq $EditCode } | Select-Object -First 1
@@ -671,8 +741,6 @@ function Build-Html {
         $oldCodesChecked = "checked"
     } elseif ($ActiveTab -eq "ttchung") {
         $ttChungChecked = "checked"
-    } elseif ($ViewFrom -eq "ttchung") {
-        $ttChungChecked = "checked"
     } elseif (-not [string]::IsNullOrWhiteSpace($CkSearchQuery) -or -not [string]::IsNullOrWhiteSpace($EditCode) -or -not [string]::IsNullOrWhiteSpace($ViewCode)) {
         $ttChungChecked = ""
         $ckChecked = "checked"
@@ -700,6 +768,22 @@ function Build-Html {
   .pagetabs .tabnav label { padding:10px 18px; cursor:pointer; font-size:14px; color:#555; border-bottom:3px solid transparent; margin-bottom:-2px; user-select:none }
   .pagetabs .panel { display:none }
   .pagetabs .badge-count { background:#fde68a; color:#8a6d00; border-radius:10px; padding:1px 7px; font-size:11px; margin-left:6px }
+
+  .cktypetabs { margin-top:8px }
+  .cktypetabs input[type=radio] { display:none }
+  .cktypetabs-nav { display:flex; gap:4px; border-bottom:1px solid #e5e7eb; margin-bottom:12px }
+  .cktypetabs-nav label { padding:8px 14px; cursor:pointer; font-size:13px; color:#555; border-bottom:2px solid transparent; margin-bottom:-1px; user-select:none }
+  .cktypepanel { display:none }
+  #cktab-cophieu:checked ~ .cktypetabs-nav label[for=cktab-cophieu],
+  #cktab-ccq:checked ~ .cktypetabs-nav label[for=cktab-ccq],
+  #cktab-tinphieu:checked ~ .cktypetabs-nav label[for=cktab-tinphieu],
+  #cktab-traiphieu:checked ~ .cktypetabs-nav label[for=cktab-traiphieu],
+  #cktab-cq:checked ~ .cktypetabs-nav label[for=cktab-cq] { color:#2563eb; border-bottom-color:#2563eb; font-weight:600 }
+  #cktab-cophieu:checked ~ .cktypetabs-panels .cktypepanel-cophieu,
+  #cktab-ccq:checked ~ .cktypetabs-panels .cktypepanel-ccq,
+  #cktab-tinphieu:checked ~ .cktypetabs-panels .cktypepanel-tinphieu,
+  #cktab-traiphieu:checked ~ .cktypetabs-panels .cktypepanel-traiphieu,
+  #cktab-cq:checked ~ .cktypetabs-panels .cktypepanel-cq { display:block }
 
   #ptab-ttchung:checked ~ .tabnav label[for=ptab-ttchung],
   #ptab-ck:checked ~ .tabnav label[for=ptab-ck],
@@ -757,16 +841,15 @@ function Build-Html {
   </div>
   <div class="panels">
     <div class="panel panel-ttchung">
-      $ttChungViewBlock
       <h3>Mã mới / mã cũ đang chờ duyệt TT chung ($countTT)</h3>
       <table>
-        <tr><th>Mã CK</th><th>Mã giao dịch</th><th>Tên TCPH</th><th>Tên chứng khoán</th><th>Thị trường</th><th>Nơi quản lý VSD</th><th>Mã ISIN</th><th>Nguồn</th><th></th><th></th></tr>
+        <tr><th>Tên viết tắt</th><th>Tổ chức phát hành</th><th>Tên giao dịch</th><th>Tên giao dịch tiếng Anh</th><th>Tên tiếng Anh</th><th>Thị trường</th><th>Nơi quản lý tại VSD</th><th>Mã ISIN</th><th>Nguồn</th><th></th></tr>
         $ttChungRows
       </table>
 
       <h3>Mã cần cập nhật tên (mục 4 CR) ($countNameChange)</h3>
       <table>
-        <tr><th>Mã CK</th><th>Tên cũ (Flex)</th><th>Tên mới (VSD)</th><th></th><th></th></tr>
+        <tr><th>Mã CK</th><th>Tên cũ (Flex)</th><th>Tên mới (VSD)</th><th></th></tr>
         $nameChangeRows
       </table>
     </div>
@@ -778,11 +861,56 @@ function Build-Html {
         </form>
       </div>
       $ckSearchBlock
-      <h3>Đang chờ duyệt tab Chứng khoán</h3>
-      <table>
-        <tr><th>Mã CK</th><th>Mã giao dịch</th><th>Tên</th><th>Nơi GD</th><th>Loại CK</th><th>Mệnh giá</th><th>Nguồn</th><th></th><th></th></tr>
-        $chungKhoanRows
-      </table>
+
+      <div class="cktypetabs">
+        <input type="radio" id="cktab-cophieu" name="cktypetabs" checked>
+        <input type="radio" id="cktab-ccq" name="cktypetabs">
+        <input type="radio" id="cktab-tinphieu" name="cktypetabs">
+        <input type="radio" id="cktab-traiphieu" name="cktypetabs">
+        <input type="radio" id="cktab-cq" name="cktypetabs">
+        <div class="cktypetabs-nav">
+          <label for="cktab-cophieu">Cổ phiếu <span class="badge-count">$countCkCoPhieu</span></label>
+          <label for="cktab-ccq">Chứng chỉ quỹ <span class="badge-count">$countCkChungChiQuy</span></label>
+          <label for="cktab-tinphieu">Tín phiếu <span class="badge-count">$countCkTinPhieu</span></label>
+          <label for="cktab-traiphieu">Trái phiếu <span class="badge-count">$countCkTraiPhieu</span></label>
+          <label for="cktab-cq">Chứng quyền <span class="badge-count">$countCkChungQuyen</span></label>
+        </div>
+        <div class="cktypetabs-panels">
+          <div class="cktypepanel cktypepanel-cophieu">
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại chứng khoán</th><th>Loại trái phiếu</th><th>Có thu phí lưu ký</th><th>Mệnh giá</th><th>Nguồn</th><th></th><th></th></tr>
+              $ckCoPhieuRows
+            </table>
+          </div>
+          <div class="cktypepanel cktypepanel-ccq">
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại chứng khoán</th><th>Loại trái phiếu</th><th>Có thu phí lưu ký</th><th>Mệnh giá</th><th>Nguồn</th><th></th><th></th></tr>
+              $ckChungChiQuyRows
+            </table>
+          </div>
+          <div class="cktypepanel cktypepanel-tinphieu">
+            <p class="muted"><i>Chưa có yêu cầu chi tiết cho Tín phiếu - đang hiện bảng rút gọn.</i></p>
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại CK</th><th>Nguồn</th><th></th></tr>
+              $ckTinPhieuRows
+            </table>
+          </div>
+          <div class="cktypepanel cktypepanel-traiphieu">
+            <p class="muted"><i>Chưa có yêu cầu chi tiết cho Trái phiếu - đang hiện bảng rút gọn.</i></p>
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại CK</th><th>Nguồn</th><th></th></tr>
+              $ckTraiPhieuRows
+            </table>
+          </div>
+          <div class="cktypepanel cktypepanel-cq">
+            <p class="muted"><i>Chưa có yêu cầu chi tiết cho Chứng quyền - đang hiện bảng rút gọn.</i></p>
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại CK</th><th>Nguồn</th><th></th></tr>
+              $ckChungQuyenRows
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="panel panel-ks">
       $ksFilterHtml
@@ -889,19 +1017,14 @@ try {
                     } elseif ($oldStatus -eq "Chờ duyệt TT chung") {
                         # Chuyen tu tab TT chung sang tab Chung khoan: nhap tab Chung khoan
                         if (-not $item.Tabs) { $item | Add-Member -NotePropertyName Tabs -NotePropertyValue ([pscustomobject]@{ TTChung=$null; ChungKhoan=$null; TTCK=$null }) -Force }
-                        $item.Tabs.ChungKhoan = [pscustomobject]@{
-                            MaCK           = $item.Code
-                            NoiGD          = $item.Market
-                            LoaiChungKhoan = $item.StockType
-                            MenhGia        = "10000"
-                        }
+                        $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD
                         $hanhDong = "Duyet TT chung xong -> chuyen sang tab Chung khoan"
                     } elseif ($oldStatus -eq "Chờ duyệt Chứng khoán") {
                         # Hoan tat: dien tab TTCK ngam (khong hien thi tab rieng theo yeu cau UI)
                         if ($item.Tabs) {
                             $item.Tabs.TTCK = [pscustomobject]@{
                                 DonViGiaoDich         = "1000"
-                                KhoiLuongNiemYet      = "N/A (theo tổng số đăng ký tại VSD)"
+                                KhoiLuongNiemYet      = if ($item.TongSoDangKyVSD) { $item.TongSoDangKyVSD } else { "N/A (theo tổng số đăng ký tại VSD)" }
                                 NgayNiemYet           = (Get-Date -Format "yyyy-MM-dd")
                                 MuaBanCungNgay        = "Có"
                                 CheckRoomNDTNuocNgoai = "Có"

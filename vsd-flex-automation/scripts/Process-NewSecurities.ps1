@@ -12,6 +12,21 @@ hinh Flex (020004):
            tu dien tab TTCK (khong hien thi rieng tren UI danh sach) -> Status =
            "Hoat dong" (hoan tat).
 
+Theo dung bang mapping trong file "Cach thuc khai ma chung khoan" (Excel dinh kem
+CR):
+  Flex "Ten viet tat"          <- VSD "Ma chung khoan"          (da co: Code)
+  Flex "To chuc phat hanh"     <- VSD "Ten TCPH"                (RIENG BIET voi ten CK!)
+  Flex "Ten giao dich"         <- VSD "Ten chung khoan"
+  Flex "Ten giao dich TA"      <- VSD "Ten chung khoan (TA)"    (VSD thuong CHUA CO, cham hon)
+  Flex "Ten TA"                <- VSD "Ten TCPH (TA)"           (VSD thuong CHUA CO, cham hon)
+  Flex "Thi truong"            <- luon chon "Trong nuoc"
+  Flex "Noi quan ly tai VSD"   <- tuy VSD hien "chi nhanh" hay "tru so chinh"
+  Flex "Ma ISIN"               <- VSD "Ma ISIN"
+
+"Ten TCPH" KHONG co o trang danh sach VSD (chi co "Ten chung khoan") - phai fetch
+THEM trang chi tiet tung ma (/s-detail/{id}) qua Modules/VsdDetail.psm1 de lay dung.
+Trang chi tiet nay cung co Menh gia va Tong so dang ky (dung cho tab Chung khoan/TTCK).
+
 Vi CHUA CO Flex that, buoc "nhan vien bam duyet" duoc mo phong bang tham so
 -AutoApprove (chi dung de DEMO chay het 1 luot, KHONG dai dien cho hanh vi thuc te
 - trong Flex that day la hanh dong thu cong cua nhan vien tren man hinh).
@@ -28,6 +43,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Import-Module (Join-Path $PSScriptRoot "Modules\FlexMockStore.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "Modules\VsdDetail.psm1") -Force
 
 function Send-WorkflowEmail {
     param([string]$Subject, [string]$HtmlBody)
@@ -59,6 +75,12 @@ function Format-Table-Html {
     return "<table style='border-collapse:collapse'><tr>$header</tr>$($rows -join '')</table>"
 }
 
+function Get-NoiQuanLyVSDText {
+    param([string]$ManagementArea)
+    if ($ManagementArea -like "*Chi nhánh*") { return "Trung tâm lưu ký chứng khoán Việt Nam - Chi nhánh TP Hồ Chí Minh" }
+    return "Trung tâm lưu ký chứng khoán Việt Nam"
+}
+
 $report = Get-Content $ReportFile -Raw | ConvertFrom-Json
 $newCodes = @($report.NewCodes)
 
@@ -68,16 +90,37 @@ if ($newCodes.Count -eq 0) {
 }
 
 $flex = [System.Collections.Generic.List[object]](Get-FlexStore -Path $FlexStorePath)
+$existingCodes = @($flex | ForEach-Object { $_.Code })
+
+# Chong trung: neu chay lai script voi cung report (VD: chay 2 lan lien tiep truoc khi
+# quet lai VSD), bo qua ma da co san tren Flex thay vi tao ban ghi trung lap.
+$skippedExisting = $newCodes | Where-Object { $_.Code -in $existingCodes }
+$newCodes = @($newCodes | Where-Object { $_.Code -notin $existingCodes })
+if ($skippedExisting) {
+    Write-Warning "Bo qua $($skippedExisting.Count) ma da co san tren Flex (tranh trung lap): $(($skippedExisting | ForEach-Object { $_.Code }) -join ', ')"
+}
+if ($newCodes.Count -eq 0) {
+    Write-Host "Khong con ma moi nao can xu ly sau khi loc trung."
+    return
+}
 
 Write-Host "=== Cong 1 - Tab TT chung: nhap $($newCodes.Count) ma moi ==="
 foreach ($code in $newCodes) {
+    $detail = $null
+    if ($code.DetailId) {
+        Write-Host "  ... dang lay chi tiet $($code.Code) tu /s-detail/$($code.DetailId)"
+        $detail = Get-VsdSecurityDetail -DetailId $code.DetailId
+    }
+
     $ttChung = [pscustomobject]@{
-        MaCK              = $code.Code
-        TenTCPH           = $code.Name
-        TenChungKhoan     = $code.Name
-        ThiTruong         = "Trong nước"
-        NoiQuanLyVSD      = "Trung tâm lưu ký chứng khoán Việt Nam"
-        MaISIN            = $code.IsinCode
+        MaCK                = $code.Code
+        TenTCPH             = if ($detail -and $detail.TenTCPH) { $detail.TenTCPH } else { $code.Name }
+        TenChungKhoan       = if ($detail -and $detail.TenChungKhoan) { $detail.TenChungKhoan } else { $code.Name }
+        TenGiaoDichTiengAnh = "Đang bổ sung"   # VSD thuong cap nhat tieng Anh cham hon tieng Viet
+        TenTiengAnh         = "Đang bổ sung"
+        ThiTruong           = "Trong nước"
+        NoiQuanLyVSD        = Get-NoiQuanLyVSDText -ManagementArea $code.ManagementArea
+        MaISIN              = $code.IsinCode
     }
 
     $now = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
@@ -88,10 +131,13 @@ foreach ($code in $newCodes) {
         StockType      = $code.StockType
         Market         = $code.Market
         ManagementArea = $code.ManagementArea
+        DetailId       = $code.DetailId
+        MenhGiaVSD     = if ($detail) { $detail.MenhGia } else { $null }        # luu lai de dung cho tab Chung khoan
+        TongSoDangKyVSD = if ($detail) { $detail.TongSoDangKy } else { $null }   # luu lai de dung cho tab TTCK
         Status         = "Chờ duyệt TT chung"
         Source         = $Source
         StatusChangedAt = $now
-        LichSuDuyet    = @([pscustomobject]@{ ThoiGian = $now; HanhDong = "Nhap tab TT chung"; TrangThai = "Chờ duyệt TT chung" })
+        LichSuDuyet    = @([pscustomobject]@{ ThoiGian = $now; HanhDong = "Nhap tab TT chung (Ten TCPH lay tu trang chi tiet VSD)"; TrangThai = "Chờ duyệt TT chung" })
         Tabs           = [pscustomobject]@{
             TTChung     = $ttChung
             ChungKhoan  = $null
@@ -99,17 +145,17 @@ foreach ($code in $newCodes) {
         }
     }
     $flex.Add($newItem)
-    Write-Host "  + $($code.Code) - $($code.Name)"
+    Write-Host "  + $($code.Code) - TCPH: $($ttChung.TenTCPH)"
 }
 Save-FlexStore -Path $FlexStorePath -Data $flex
 
-$ttChungDisplay = $newCodes | ForEach-Object {
+$ttChungDisplay = $flex | Where-Object { $_.Code -in ($newCodes | ForEach-Object { $_.Code }) } | ForEach-Object {
     [pscustomobject]@{
         Code         = $_.Code
-        TenTCPH      = $_.Name
-        ThiTruong    = "Trong nước"
-        NoiQuanLyVSD = "Trung tâm lưu ký chứng khoán Việt Nam"
-        MaISIN       = $_.IsinCode
+        TenTCPH      = $_.Tabs.TTChung.TenTCPH
+        ThiTruong    = $_.Tabs.TTChung.ThiTruong
+        NoiQuanLyVSD = $_.Tabs.TTChung.NoiQuanLyVSD
+        MaISIN       = $_.Tabs.TTChung.MaISIN
     }
 }
 Send-WorkflowEmail -Subject "[Flex] Yeu cau duyet tab TT chung ($($newCodes.Count) ma moi)" `
@@ -127,12 +173,7 @@ Write-Host "=== [MOC PHONG DUYET TT CHUNG] -> chuyen sang tab Chung khoan ==="
 $codesSet = $newCodes | ForEach-Object { $_.Code }
 foreach ($item in $flex) {
     if ($item.Code -in $codesSet) {
-        $item.Tabs.ChungKhoan = [pscustomobject]@{
-            MaCK           = $item.Code
-            NoiGD          = $item.Market
-            LoaiChungKhoan = $item.StockType
-            MenhGia        = "10000"
-        }
+        $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD
         Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Duyet TT chung xong -> chuyen sang tab Chung khoan"
     }
 }
@@ -157,7 +198,7 @@ foreach ($item in $flex) {
     if ($item.Code -in $codesSet) {
         $item.Tabs.TTCK = [pscustomobject]@{
             DonViGiaoDich         = "1000"
-            KhoiLuongNiemYet      = "N/A (theo tổng số đăng ký tại VSD)"
+            KhoiLuongNiemYet      = if ($item.TongSoDangKyVSD) { $item.TongSoDangKyVSD } else { "N/A (theo tổng số đăng ký tại VSD)" }
             NgayNiemYet           = (Get-Date -Format "yyyy-MM-dd")
             MuaBanCungNgay        = "Có"
             CheckRoomNDTNuocNgoai = "Có"

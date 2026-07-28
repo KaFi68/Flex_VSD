@@ -85,8 +85,8 @@ foreach ($chg in $nameChanges) {
         ThiTruong           = if ($oldTTChung) { $oldTTChung.ThiTruong } else { "Trong nước" }
         NoiQuanLyVSD        = if ($oldTTChung) { $oldTTChung.NoiQuanLyVSD } else { "Trung tâm lưu ký chứng khoán Việt Nam" }
         MaISIN              = if ($oldTTChung) { $oldTTChung.MaISIN } else { $item.IsinCode }
-        TenGiaoDichTiengAnh = "(chưa có - cần nhập tay, VSD chưa cập nhật tiếng Anh)"
-        TenTiengAnh         = "(chưa có - cần nhập tay, VSD chưa cập nhật tiếng Anh)"
+        TenGiaoDichTiengAnh = if ($oldTTChung -and $oldTTChung.TenGiaoDichTiengAnh -and $oldTTChung.TenGiaoDichTiengAnh -ne "Đang bổ sung") { $oldTTChung.TenGiaoDichTiengAnh } else { "Đang bổ sung" }
+        TenTiengAnh         = if ($oldTTChung -and $oldTTChung.TenTiengAnh -and $oldTTChung.TenTiengAnh -ne "Đang bổ sung") { $oldTTChung.TenTiengAnh } else { "Đang bổ sung" }
     }
 
     Set-FlexStatus -Item $item -NewStatus "Chờ duyệt TT chung" -HanhDong "Sua ten TCPH/ten giao dich theo VSD ('$($chg.FlexName)' -> '$($chg.VsdName)'), cho duyet 1 lan"
