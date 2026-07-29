@@ -204,6 +204,39 @@ function New-ChungKhoanTabData {
     }
 }
 
+function New-TTCKTabData {
+    # Xay dung du lieu tab "TT Chung khoan" (buoc duyet thu 3, sau khi duyet xong tab
+    # Chung khoan). Ca 5 loai chung khoan (Co phieu / Chung chi quy / Tin phieu / Trai
+    # phieu / Chung quyen) deu ap dung CHUNG 1 rule, CHI KHAC "Check room NDT NN":
+    #   Flex "Ngay giao dich"          <- Ngay he thong + 2 nam
+    #   Flex "Don vi giao dich"        <- Luon mac dinh "1.000"
+    #   Flex "Khoi luong niem yet"     <- VSD "Tong so chung khoan/chung quyen dang ky (tai VSDC)"
+    #   Flex "Ngay niem yet"           <- Ngay he thong + 2 nam
+    #   Flex "Mua ban cung ngay"       <- Luon chon "Co"
+    #   Flex "Check room NDT NN"       <- Co phieu: "Co". 4 loai con lai: "Khong"
+    param(
+        [string]$StockType,
+        [string]$KhoiLuongNiemYetVSD   # VSD "Tong so chung khoan dang ky" - da luu tu buoc 1 (TongSoDangKyVSD)
+    )
+
+    $isCoPhieu = $StockType -eq "Cổ phiếu"
+    $ngayHeThongCong2Nam = (Get-Date).AddYears(2).ToString("dd/MM/yyyy")
+    $ngayGiaoDich = $ngayHeThongCong2Nam
+    $donViGiaoDich = "1.000"
+    $ngayNiemYet = $ngayHeThongCong2Nam
+    $muaBanCungNgay = "Có"
+    $checkRoomNDTNuocNgoai = if ($isCoPhieu) { "Có" } else { "Không" }
+
+    return [pscustomobject]@{
+        NgayGiaoDich          = $ngayGiaoDich
+        DonViGiaoDich         = $donViGiaoDich
+        KhoiLuongNiemYet      = if ($KhoiLuongNiemYetVSD) { $KhoiLuongNiemYetVSD } else { "N/A (theo tổng số đăng ký tại VSD)" }
+        NgayNiemYet           = $ngayNiemYet
+        MuaBanCungNgay        = $muaBanCungNgay
+        CheckRoomNDTNuocNgoai = $checkRoomNDTNuocNgoai
+    }
+}
+
 # Nhom "loai chung khoan" VSD tra ve vao dung 1 trong 5 danh muc theo Excel (Co phieu /
 # Chung chi quy / Tin phieu / Trai phieu / Chung quyen). Dung de chia sub-tab tren UI.
 function Get-SecurityCategory {
@@ -218,4 +251,4 @@ function Get-SecurityCategory {
     }
 }
 
-Export-ModuleMember -Function Get-FlexStore, Save-FlexStore, Set-FlexStatus, New-ChungKhoanTabData, Get-SecurityCategory
+Export-ModuleMember -Function Get-FlexStore, Save-FlexStore, Set-FlexStatus, New-ChungKhoanTabData, New-TTCKTabData, Get-SecurityCategory

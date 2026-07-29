@@ -86,9 +86,10 @@ function Send-ApproveNotice {
 function Get-NextStatus {
     param([string]$CurrentStatus)
     switch -Wildcard ($CurrentStatus) {
-        "Chờ duyệt TT chung*"      { return "Chờ duyệt Chứng khoán" }
-        "Chờ duyệt Chứng khoán*"   { return "Hoạt động" }
-        default                   { return $CurrentStatus }
+        "Chờ duyệt TT chung*"          { return "Chờ duyệt Chứng khoán" }
+        "Chờ duyệt Chứng khoán*"       { return "Chờ duyệt TT Chứng khoán" }
+        "Chờ duyệt TT Chứng khoán*"    { return "Hoạt động" }
+        default                       { return $CurrentStatus }
     }
 }
 
@@ -157,6 +158,7 @@ function Build-LoginHtml {
 $NoiGDOptions = @("HOSE","HNX","OTC","UPCOM","WFT","DCCNY","BOND")
 $NoiLuuKyOptions = @("Trụ sở chính","Chi nhánh")
 $LoaiChungKhoanOptions = @("Cổ phiếu","Chứng chỉ quỹ","Tín phiếu","Trái phiếu","Chứng quyền")
+$CoKhongOptions = @("Có","Không")
 
 function Get-SyntheticId {
     param([string]$Code, [int]$Seed)
@@ -176,7 +178,7 @@ function Build-NameChangesTable {
             <td>$(Enc $_.Code)</td>
             <td>$(Enc $tc.TenCu)</td>
             <td><b>$(Enc $tc.TenMoi)</b></td>
-            <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
+            <td><form method='post' action='/approve?code=$($_.Code)&from=ttchung' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
 }
@@ -199,7 +201,7 @@ function Build-TTChungTable {
             <td>$(Enc $t.NoiQuanLyVSD)</td>
             <td>$(Enc $t.MaISIN)</td>
             <td><span class='src'>$nguon</span></td>
-            <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
+            <td><form method='post' action='/approve?code=$($_.Code)&from=ttchung' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
 }
@@ -242,7 +244,7 @@ function Build-ChungKhoanTable-Detailed {
             <td>$phiLuuKy</td>
             <td>$menhGia</td>
             <td><span class='src'>$nguon</span></td>
-            <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
+            <td><form method='post' action='/approve?code=$($_.Code)&from=ck' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
 }
@@ -288,7 +290,7 @@ function Build-ChungKhoanTable-TraiPhieu {
             <td>$loaiKyHan</td>
             <td>$kyHan</td>
             <td><span class='src'>$nguon</span></td>
-            <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
+            <td><form method='post' action='/approve?code=$($_.Code)&from=ck' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
 }
@@ -342,7 +344,40 @@ function Build-ChungKhoanTable-ChungQuyen {
             <td>$ngayDaoHan</td>
             <td>$ngayCuoiCung</td>
             <td><span class='src'>$nguon</span></td>
-            <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
+            <td><form method='post' action='/approve?code=$($_.Code)&from=ck' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
+        </tr>"
+    }) -join "`n"
+}
+
+function Build-TTCKTable-Detailed {
+    # Bang chi tiet tab "TT Chung khoan" - dung chung cho cac loai DA co bang mapping ro
+    # rang (hien: Co phieu va Chung chi quy - giong het nhau, chi khac Check room NDT NN
+    # da tinh san trong New-TTCKTabData). Cot: Ngay giao dich, Don vi GD, Khoi luong niem
+    # yet, Ngay niem yet, Mua ban cung ngay, Check room NDT NN.
+    param($Items, [string]$EmptyLabel = "chứng khoán")
+    if (-not $Items -or $Items.Count -eq 0) {
+        return "<tr><td colspan='10' style='text-align:center;color:#888'>Không có mã $EmptyLabel nào đang chờ duyệt TT Chứng khoán</td></tr>"
+    }
+    ($Items | ForEach-Object {
+        $t = if ($_.Tabs -and $_.Tabs.TTCK) { $_.Tabs.TTCK } else { $null }
+        $ngayGiaoDich = if ($t) { Enc $t.NgayGiaoDich } else { "-" }
+        $donViGD = if ($t) { Enc $t.DonViGiaoDich } else { "-" }
+        $khoiLuong = if ($t) { Enc $t.KhoiLuongNiemYet } else { "-" }
+        $ngayNiemYet = if ($t) { Enc $t.NgayNiemYet } else { "-" }
+        $muaBanCungNgay = if ($t) { Enc $t.MuaBanCungNgay } else { "-" }
+        $checkRoom = if ($t) { Enc $t.CheckRoomNDTNuocNgoai } else { "-" }
+        $nguon = if ($_.Source) { "$(Enc $_.Source) (từ tab Chứng khoán)" } else { "Mã mới (từ tab Chứng khoán)" }
+        "<tr>
+            <td>$(Enc $_.Code)</td>
+            <td>$(Enc $_.Name)</td>
+            <td>$ngayGiaoDich</td>
+            <td>$donViGD</td>
+            <td>$khoiLuong</td>
+            <td>$ngayNiemYet</td>
+            <td>$muaBanCungNgay</td>
+            <td>$checkRoom</td>
+            <td><span class='src'>$nguon</span></td>
+            <td><form method='post' action='/approve?code=$($_.Code)&from=ttck' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
 }
@@ -408,13 +443,19 @@ function Build-StandalonePage {
   .closebar { text-align:right; margin-bottom:8px }
   .closebar .minibtn { background:#eafbea; color:#1a7a1a; border-color:#bfe8bf }
   .editnav { display:flex; gap:4px; border-bottom:1px solid #e5e7eb; margin-bottom:14px }
-  .editnav span { padding:6px 14px; font-size:12px }
+  .editnav span, .editnav label { padding:6px 14px; font-size:12px; cursor:pointer; user-select:none }
   .editnav-active { color:#2563eb; font-weight:600; border-bottom:2px solid #2563eb }
-  .editnav-disabled { color:#bbb }
+  .editnav-disabled { color:#bbb; cursor:default }
   .formrow { display:flex; align-items:center; margin-bottom:8px }
   .formrow label { width:160px; font-size:12px; color:#555 }
   .formrow input, .formrow select { flex:1; max-width:280px; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px }
   .formrow input:disabled { background:#f5f5f5; color:#888 }
+  .editnavtabs input[type=radio] { display:none }
+  .editnavpanel { display:none }
+  #editnav-ttchung:checked ~ .editnav label[for=editnav-ttchung],
+  #editnav-ttck:checked ~ .editnav label[for=editnav-ttck] { color:#2563eb; font-weight:600; border-bottom:2px solid #2563eb }
+  #editnav-ttchung:checked ~ .editnavpanels .editnavpanel-ttchung,
+  #editnav-ttck:checked ~ .editnavpanels .editnavpanel-ttck { display:block }
 </style>
 </head>
 <body>
@@ -461,25 +502,57 @@ function Build-CkEditFormHtml {
     } else {
         "<input type='text' value='-' disabled title='Chưa có dữ liệu (chỉ sinh sau khi duyệt xong tab Chứng khoán)' />"
     }
+
+    # Tab "TT CK" (thi truong chung khoan) - chi sua duoc khi da co du lieu (sinh ra luc
+    # duyet xong tab Chung khoan -> chuyen sang tab TT Chung khoan).
+    $hasTTCK = $Item.Tabs -and $Item.Tabs.TTCK
+    $ttckPanelContent = if ($hasTTCK) {
+        $t = $Item.Tabs.TTCK
+        $muaBanOptionsHtml = Build-SelectOptionsHtml -Options $CoKhongOptions -CurrentValue $t.MuaBanCungNgay
+        $checkRoomOptionsHtml = Build-SelectOptionsHtml -Options $CoKhongOptions -CurrentValue $t.CheckRoomNDTNuocNgoai
+        @"
+    <div class="formrow"><label>Ngày giao dịch</label><input type="text" name="ngaygiaodich" value="$(Enc $t.NgayGiaoDich)" /></div>
+    <div class="formrow"><label>Đơn vị giao dịch</label><input type="text" name="donvigiaodich" value="$(Enc $t.DonViGiaoDich)" /></div>
+    <div class="formrow"><label>Khối lượng niêm yết</label><input type="text" name="khoiluongniemyet" value="$(Enc $t.KhoiLuongNiemYet)" /></div>
+    <div class="formrow"><label>Ngày niêm yết</label><input type="text" name="ngayniemyet" value="$(Enc $t.NgayNiemYet)" /></div>
+    <div class="formrow"><label>Mua bán cùng ngày</label><select name="muabancungngay">$muaBanOptionsHtml</select></div>
+    <div class="formrow"><label>Check room NĐT NN</label><select name="checkroom">$checkRoomOptionsHtml</select></div>
+"@
+    } else {
+        "<p class='muted'><i>Chưa có dữ liệu (chỉ sinh sau khi duyệt xong tab Chứng khoán).</i></p>"
+    }
+    $ttckNavItem = if ($hasTTCK) { "<label for='editnav-ttck'>TT CK</label>" } else { "<span class='editnav-disabled'>TT CK</span>" }
+
     return @"
 <div class="editbox">
   <div class="closebar"><a class="minibtn" href="$CloseHref">&#10003; Đóng</a></div>
-  <div class="editnav">
-    <span class="editnav-active">TT chung</span>
-    <span class="editnav-disabled">Bước giá</span>
-    <span class="editnav-disabled">TT CK</span>
+  <div class="editnavtabs">
+    <input type="radio" id="editnav-ttchung" name="editnavtabs" checked>
+    <input type="radio" id="editnav-ttck" name="editnavtabs">
+    <div class="editnav">
+      <label for="editnav-ttchung">TT chung</label>
+      <span class="editnav-disabled">Bước giá</span>
+      $ttckNavItem
+    </div>
+    <div class="editnavpanels">
+      <form method="post" action="/update-security?code=$([System.Uri]::EscapeDataString($Item.Code))">
+        <div class="editnavpanel editnavpanel-ttchung">
+          <div class="formrow"><label>Mã qui ước</label><input type="text" name="maquiuoc" value="$(Enc $maQuiUoc)" /></div>
+          <div class="formrow"><label>Mã TCPH</label><input type="text" name="matcph" value="$(Enc $maTcph)" /></div>
+          <div class="formrow"><label>Mã chứng khoán</label><input type="text" name="code" value="$(Enc $Item.Code)" /></div>
+          <div class="formrow"><label>Nơi GD</label><select name="noigd">$options</select></div>
+          <div class="formrow"><label>Nơi lưu ký</label><select name="noiluuky">$noiLuuKyOptionsHtml</select></div>
+          <div class="formrow"><label>Loại chứng khoán</label><select name="loaick">$loaiCKOptionsHtml</select></div>
+          <div class="formrow"><label>Trạng thái CK</label><input type="text" value="$(Enc $Item.Status)" disabled /></div>
+          <div class="formrow"><label>Loại trái phiếu</label>$loaiTraiPhieuField</div>
+        </div>
+        <div class="editnavpanel editnavpanel-ttck">
+          $ttckPanelContent
+        </div>
+        <button type="submit" class="btn">Cập nhật</button>
+      </form>
+    </div>
   </div>
-  <form method="post" action="/update-security?code=$([System.Uri]::EscapeDataString($Item.Code))">
-    <div class="formrow"><label>Mã qui ước</label><input type="text" name="maquiuoc" value="$(Enc $maQuiUoc)" /></div>
-    <div class="formrow"><label>Mã TCPH</label><input type="text" name="matcph" value="$(Enc $maTcph)" /></div>
-    <div class="formrow"><label>Mã chứng khoán</label><input type="text" name="code" value="$(Enc $Item.Code)" /></div>
-    <div class="formrow"><label>Nơi GD</label><select name="noigd">$options</select></div>
-    <div class="formrow"><label>Nơi lưu ký</label><select name="noiluuky">$noiLuuKyOptionsHtml</select></div>
-    <div class="formrow"><label>Loại chứng khoán</label><select name="loaick">$loaiCKOptionsHtml</select></div>
-    <div class="formrow"><label>Trạng thái CK</label><input type="text" value="$(Enc $Item.Status)" disabled /></div>
-    <div class="formrow"><label>Loại trái phiếu</label>$loaiTraiPhieuField</div>
-    <button type="submit" class="btn">Cập nhật</button>
-  </form>
 </div>
 "@
 }
@@ -560,6 +633,7 @@ $cwRows
         $k = $Item.Tabs.TTCK
         @"
 <table class='mini'>
+<tr><td>Ngày giao dịch</td><td>$(Enc $k.NgayGiaoDich)</td></tr>
 <tr><td>Đơn vị giao dịch</td><td>$(Enc $k.DonViGiaoDich)</td></tr>
 <tr><td>Khối lượng niêm yết</td><td>$(Enc $k.KhoiLuongNiemYet)</td></tr>
 <tr><td>Ngày niêm yết</td><td>$(Enc $k.NgayNiemYet)</td></tr>
@@ -833,6 +907,7 @@ function Build-Html {
     $waitingNameChange = $waitingTTChungAll | Where-Object { $_.TraCuuDoiTen }
     $waitingTTChung    = $waitingTTChungAll | Where-Object { -not $_.TraCuuDoiTen }
     $waitingChungKhoan = $flex | Where-Object { $_.Status -eq "Chờ duyệt Chứng khoán" }
+    $waitingTTCK       = $flex | Where-Object { $_.Status -eq "Chờ duyệt TT Chứng khoán" }
     $deletedItems      = $flex | Where-Object { $_.Status -eq "Đã xóa" }
 
     $ttChungRows      = Build-TTChungTable -Items $waitingTTChung
@@ -852,6 +927,19 @@ function Build-Html {
     $ckTraiPhieuRows   = Build-ChungKhoanTable-TraiPhieu -Items $ckByCategory.TraiPhieu
     $ckChungQuyenRows  = Build-ChungKhoanTable-ChungQuyen -Items $ckByCategory.ChungQuyen
 
+    # Tab "TT Chung khoan" (buoc duyet thu 3) - cung chia 5 nhom nhu tab Chung khoan.
+    # Dang dung bang TAM (Build-TTCKTable-Placeholder) cho den khi co yeu cau mapping chi tiet.
+    $ttckByCategory = @{ CoPhieu = @(); ChungChiQuy = @(); TinPhieu = @(); TraiPhieu = @(); ChungQuyen = @() }
+    foreach ($item in $waitingTTCK) {
+        $cat = Get-SecurityCategory -StockType $item.StockType
+        $ttckByCategory[$cat] += $item
+    }
+    $ttckCoPhieuRows     = Build-TTCKTable-Detailed -Items $ttckByCategory.CoPhieu -EmptyLabel "cổ phiếu"
+    $ttckChungChiQuyRows = Build-TTCKTable-Detailed -Items $ttckByCategory.ChungChiQuy -EmptyLabel "chứng chỉ quỹ"
+    $ttckTinPhieuRows    = Build-TTCKTable-Detailed -Items $ttckByCategory.TinPhieu -EmptyLabel "tín phiếu"
+    $ttckTraiPhieuRows   = Build-TTCKTable-Detailed -Items $ttckByCategory.TraiPhieu -EmptyLabel "trái phiếu"
+    $ttckChungQuyenRows  = Build-TTCKTable-Detailed -Items $ttckByCategory.ChungQuyen -EmptyLabel "chứng quyền"
+
     $ksAllStatuses    = Get-AllKiemSoatStatuses -Flex $flex
     $ksFilterHtml     = Build-KiemSoatFilterHtml -CodeFilter $KsCodeFilter -StatusFilter $KsStatusFilter -AllStatuses $ksAllStatuses
     $kiemSoatRows     = Build-KiemSoatTable -Flex $flex -CodeFilter $KsCodeFilter -StatusFilter $KsStatusFilter
@@ -866,6 +954,12 @@ function Build-Html {
     $countCkTinPhieu    = @($ckByCategory.TinPhieu).Count
     $countCkTraiPhieu   = @($ckByCategory.TraiPhieu).Count
     $countCkChungQuyen  = @($ckByCategory.ChungQuyen).Count
+    $countTTCK = @($waitingTTCK).Count
+    $countTtckCoPhieu     = @($ttckByCategory.CoPhieu).Count
+    $countTtckChungChiQuy = @($ttckByCategory.ChungChiQuy).Count
+    $countTtckTinPhieu    = @($ttckByCategory.TinPhieu).Count
+    $countTtckTraiPhieu   = @($ttckByCategory.TraiPhieu).Count
+    $countTtckChungQuyen  = @($ttckByCategory.ChungQuyen).Count
     $countDeleted = @($deletedItems).Count
     $countOldBacklog = @(Get-OldCodesBacklog).Count
 
@@ -883,12 +977,16 @@ function Build-Html {
 
     $ttChungChecked = "checked"
     $ckChecked = ""
+    $ttckChecked = ""
     $ksChecked = ""
     $deletedChecked = ""
     $oldCodesChecked = ""
     if ($ActiveTab -eq "ck") {
         $ttChungChecked = ""
         $ckChecked = "checked"
+    } elseif ($ActiveTab -eq "ttck") {
+        $ttChungChecked = ""
+        $ttckChecked = "checked"
     } elseif ($ActiveTab -eq "ks") {
         $ttChungChecked = ""
         $ksChecked = "checked"
@@ -946,14 +1044,32 @@ function Build-Html {
 
   #ptab-ttchung:checked ~ .tabnav label[for=ptab-ttchung],
   #ptab-ck:checked ~ .tabnav label[for=ptab-ck],
+  #ptab-ttck:checked ~ .tabnav label[for=ptab-ttck],
   #ptab-ks:checked ~ .tabnav label[for=ptab-ks],
   #ptab-deleted:checked ~ .tabnav label[for=ptab-deleted],
   #ptab-oldcodes:checked ~ .tabnav label[for=ptab-oldcodes] { color:#2563eb; border-bottom-color:#2563eb; font-weight:600 }
   #ptab-ttchung:checked ~ .panels .panel-ttchung,
   #ptab-ck:checked ~ .panels .panel-ck,
+  #ptab-ttck:checked ~ .panels .panel-ttck,
   #ptab-ks:checked ~ .panels .panel-ks,
   #ptab-deleted:checked ~ .panels .panel-deleted,
   #ptab-oldcodes:checked ~ .panels .panel-oldcodes { display:block }
+
+  .ttcktypetabs { margin-top:8px }
+  .ttcktypetabs input[type=radio] { display:none }
+  .ttcktypetabs-nav { display:flex; gap:4px; border-bottom:1px solid #e5e7eb; margin-bottom:12px }
+  .ttcktypetabs-nav label { padding:8px 14px; cursor:pointer; font-size:13px; color:#555; border-bottom:2px solid transparent; margin-bottom:-1px; user-select:none }
+  .ttcktypepanel { display:none }
+  #ttcktab-cophieu:checked ~ .ttcktypetabs-nav label[for=ttcktab-cophieu],
+  #ttcktab-ccq:checked ~ .ttcktypetabs-nav label[for=ttcktab-ccq],
+  #ttcktab-tinphieu:checked ~ .ttcktypetabs-nav label[for=ttcktab-tinphieu],
+  #ttcktab-traiphieu:checked ~ .ttcktypetabs-nav label[for=ttcktab-traiphieu],
+  #ttcktab-cq:checked ~ .ttcktypetabs-nav label[for=ttcktab-cq] { color:#2563eb; border-bottom-color:#2563eb; font-weight:600 }
+  #ttcktab-cophieu:checked ~ .ttcktypetabs-panels .ttcktypepanel-cophieu,
+  #ttcktab-ccq:checked ~ .ttcktypetabs-panels .ttcktypepanel-ccq,
+  #ttcktab-tinphieu:checked ~ .ttcktypetabs-panels .ttcktypepanel-tinphieu,
+  #ttcktab-traiphieu:checked ~ .ttcktypetabs-panels .ttcktypepanel-traiphieu,
+  #ttcktab-cq:checked ~ .ttcktypetabs-panels .ttcktypepanel-cq { display:block }
 
   .muted { color:#999 }
   h3 { font-size:13px; color:#666; margin:20px 0 8px }
@@ -969,13 +1085,19 @@ function Build-Html {
   .closebar { text-align:right; margin-bottom:8px }
   .closebar .minibtn { background:#eafbea; color:#1a7a1a; border-color:#bfe8bf }
   .editnav { display:flex; gap:4px; border-bottom:1px solid #e5e7eb; margin-bottom:14px }
-  .editnav span { padding:6px 14px; font-size:12px }
+  .editnav span, .editnav label { padding:6px 14px; font-size:12px; cursor:pointer; user-select:none }
   .editnav-active { color:#2563eb; font-weight:600; border-bottom:2px solid #2563eb }
-  .editnav-disabled { color:#bbb }
+  .editnav-disabled { color:#bbb; cursor:default }
   .formrow { display:flex; align-items:center; margin-bottom:8px }
   .formrow label { width:160px; font-size:12px; color:#555 }
   .formrow input, .formrow select { flex:1; max-width:280px; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px }
   .formrow input:disabled { background:#f5f5f5; color:#888 }
+  .editnavtabs input[type=radio] { display:none }
+  .editnavpanel { display:none }
+  #editnav-ttchung:checked ~ .editnav label[for=editnav-ttchung],
+  #editnav-ttck:checked ~ .editnav label[for=editnav-ttck] { color:#2563eb; font-weight:600; border-bottom:2px solid #2563eb }
+  #editnav-ttchung:checked ~ .editnavpanels .editnavpanel-ttchung,
+  #editnav-ttck:checked ~ .editnavpanels .editnavpanel-ttck { display:block }
 </style>
 </head>
 <body>
@@ -988,12 +1110,14 @@ function Build-Html {
 <div class="pagetabs">
   <input type="radio" id="ptab-ttchung" name="ptabs" $ttChungChecked>
   <input type="radio" id="ptab-ck" name="ptabs" $ckChecked>
+  <input type="radio" id="ptab-ttck" name="ptabs" $ttckChecked>
   <input type="radio" id="ptab-ks" name="ptabs" $ksChecked>
   <input type="radio" id="ptab-deleted" name="ptabs" $deletedChecked>
   <input type="radio" id="ptab-oldcodes" name="ptabs" $oldCodesChecked>
   <div class="tabnav">
     <label for="ptab-ttchung">TT chung <span class="badge-count">$($countTT + $countNameChange)</span></label>
     <label for="ptab-ck">Chứng khoán <span class="badge-count">$countCK</span></label>
+    <label for="ptab-ttck">TT Chứng khoán <span class="badge-count">$countTTCK</span></label>
     <label for="ptab-ks">D/S Kiểm soát</label>
     <label for="ptab-deleted">Đã xóa <span class="badge-count">$countDeleted</span></label>
     <label for="ptab-oldcodes">Mã cũ <span class="badge-count">$countOldBacklog</span></label>
@@ -1066,6 +1190,57 @@ function Build-Html {
               $ckChungQuyenRows
             </table>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel panel-ttck">
+      <div class="note">Tab "TT Chứng khoán" - bước duyệt thứ 3 (sau khi duyệt xong tab Chứng khoán). Đang dùng bảng tạm với các trường đã có sẵn, chờ yêu cầu mapping chi tiết theo từng loại chứng khoán.</div>
+      <div class="ttcktypetabs">
+        <input type="radio" id="ttcktab-cophieu" name="ttcktypetabs" checked>
+        <input type="radio" id="ttcktab-ccq" name="ttcktypetabs">
+        <input type="radio" id="ttcktab-tinphieu" name="ttcktypetabs">
+        <input type="radio" id="ttcktab-traiphieu" name="ttcktypetabs">
+        <input type="radio" id="ttcktab-cq" name="ttcktypetabs">
+        <div class="ttcktypetabs-nav">
+          <label for="ttcktab-cophieu">Cổ phiếu <span class="badge-count">$countTtckCoPhieu</span></label>
+          <label for="ttcktab-ccq">Chứng chỉ quỹ <span class="badge-count">$countTtckChungChiQuy</span></label>
+          <label for="ttcktab-tinphieu">Tín phiếu <span class="badge-count">$countTtckTinPhieu</span></label>
+          <label for="ttcktab-traiphieu">Trái phiếu <span class="badge-count">$countTtckTraiPhieu</span></label>
+          <label for="ttcktab-cq">Chứng quyền <span class="badge-count">$countTtckChungQuyen</span></label>
+        </div>
+        <div class="ttcktypetabs-panels">
+          <div class="ttcktypepanel ttcktypepanel-cophieu">
+            <div style="overflow-x:auto">
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Ngày giao dịch</th><th>Đơn vị GD</th><th>Khối lượng niêm yết</th><th>Ngày niêm yết</th><th>Mua bán cùng ngày</th><th>Check room NĐT NN</th><th>Nguồn</th><th></th></tr>
+              $ttckCoPhieuRows
+            </table>
+            </div>
+          </div>
+          <div class="ttcktypepanel ttcktypepanel-ccq">
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Ngày giao dịch</th><th>Đơn vị GD</th><th>Khối lượng niêm yết</th><th>Ngày niêm yết</th><th>Mua bán cùng ngày</th><th>Check room NĐT NN</th><th>Nguồn</th><th></th></tr>
+              $ttckChungChiQuyRows
+            </table>
+          </div>
+          <div class="ttcktypepanel ttcktypepanel-tinphieu">
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Ngày giao dịch</th><th>Đơn vị GD</th><th>Khối lượng niêm yết</th><th>Ngày niêm yết</th><th>Mua bán cùng ngày</th><th>Check room NĐT NN</th><th>Nguồn</th><th></th></tr>
+              $ttckTinPhieuRows
+            </table>
+          </div>
+          <div class="ttcktypepanel ttcktypepanel-traiphieu">
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Ngày giao dịch</th><th>Đơn vị GD</th><th>Khối lượng niêm yết</th><th>Ngày niêm yết</th><th>Mua bán cùng ngày</th><th>Check room NĐT NN</th><th>Nguồn</th><th></th></tr>
+              $ttckTraiPhieuRows
+            </table>
+          </div>
+          <div class="ttcktypepanel ttcktypepanel-cq">
+            <table>
+              <tr><th>Mã CK</th><th>Tên</th><th>Ngày giao dịch</th><th>Đơn vị GD</th><th>Khối lượng niêm yết</th><th>Ngày niêm yết</th><th>Mua bán cùng ngày</th><th>Check room NĐT NN</th><th>Nguồn</th><th></th></tr>
+              $ttckChungQuyenRows
+            </table>
           </div>
         </div>
       </div>
@@ -1160,6 +1335,7 @@ try {
 
             if ($request.HttpMethod -eq "POST" -and $path -eq "/approve") {
                 $code = $request.QueryString["code"]
+                $fromTab = $request.QueryString["from"]
                 $flex = [System.Collections.Generic.List[object]](Get-FlexStore -Path $FlexStorePath)
                 $item = $flex | Where-Object { $_.Code -eq $code } | Select-Object -First 1
                 if ($item) {
@@ -1178,26 +1354,24 @@ try {
                         $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD
                         $hanhDong = "Duyệt TT chung xong -> chuyển sang tab Chứng khoán"
                     } elseif ($oldStatus -eq "Chờ duyệt Chứng khoán") {
-                        # Hoan tat: dien tab TTCK ngam (khong hien thi tab rieng theo yeu cau UI)
+                        # Chuyen tu tab Chung khoan sang tab TT Chung khoan. Da co day du rule
+                        # cho Co phieu; cac loai con lai dung placeholder cho den khi co yeu cau.
                         if ($item.Tabs) {
-                            $ttck = [pscustomobject]@{
-                                DonViGiaoDich         = "1000"
-                                KhoiLuongNiemYet      = if ($item.TongSoDangKyVSD) { $item.TongSoDangKyVSD } else { "N/A (theo tổng số đăng ký tại VSD)" }
-                                NgayNiemYet           = (Get-Date -Format "yyyy-MM-dd")
-                                MuaBanCungNgay        = "Có"
-                                CheckRoomNDTNuocNgoai = "Có"
-                            }
+                            $ttck = New-TTCKTabData -StockType $item.StockType -KhoiLuongNiemYetVSD $item.TongSoDangKyVSD
                             if ($item.Tabs.PSObject.Properties['TTCK']) { $item.Tabs.TTCK = $ttck }
                             else { $item.Tabs | Add-Member -NotePropertyName TTCK -NotePropertyValue $ttck -Force }
                         }
-                        $hanhDong = "Duyệt Chứng khoán xong -> hoàn tất"
+                        $hanhDong = "Duyệt Chứng khoán xong -> chuyển sang tab TT Chứng khoán"
+                    } elseif ($oldStatus -eq "Chờ duyệt TT Chứng khoán") {
+                        $hanhDong = "Duyệt TT Chứng khoán xong -> hoàn tất"
                     }
 
                     Set-FlexStatus -Item $item -NewStatus $newStatus -HanhDong $hanhDong
                     Save-FlexStore -Path $FlexStorePath -Data $flex
                     Send-ApproveNotice -Code $code -NewStatus $newStatus -HanhDong $hanhDong
                 }
-                Redirect-To -Response $response -Location "/"
+                $redirectLocation = if ($fromTab) { "/?tab=$([System.Uri]::EscapeDataString($fromTab))" } else { "/" }
+                Redirect-To -Response $response -Location $redirectLocation
                 continue
             }
 
@@ -1258,6 +1432,28 @@ try {
                         $changes.Add("Mã TCPH: $oldMaTcph -> $($form["matcph"])")
                     }
 
+                    # --- Tab "TT CK" - chi sua duoc neu da co du lieu (Tabs.TTCK khong null) ---
+                    if ($item.Tabs -and $item.Tabs.TTCK) {
+                        $t = $item.Tabs.TTCK
+                        $ttckFieldMap = @{
+                            ngaygiaodich     = @{ Prop = "NgayGiaoDich";     Label = "Ngày giao dịch" }
+                            donvigiaodich    = @{ Prop = "DonViGiaoDich";    Label = "Đơn vị giao dịch" }
+                            khoiluongniemyet = @{ Prop = "KhoiLuongNiemYet"; Label = "Khối lượng niêm yết" }
+                            ngayniemyet      = @{ Prop = "NgayNiemYet";      Label = "Ngày niêm yết" }
+                            muabancungngay   = @{ Prop = "MuaBanCungNgay";   Label = "Mua bán cùng ngày" }
+                            checkroom        = @{ Prop = "CheckRoomNDTNuocNgoai"; Label = "Check room NĐT NN" }
+                        }
+                        foreach ($fieldName in $ttckFieldMap.Keys) {
+                            $newVal = $form[$fieldName]
+                            $propName = $ttckFieldMap[$fieldName].Prop
+                            $oldVal = $t.$propName
+                            if ($newVal -and $newVal -ne $oldVal) {
+                                $t.$propName = $newVal
+                                $changes.Add("$($ttckFieldMap[$fieldName].Label): $oldVal -> $newVal")
+                            }
+                        }
+                    }
+
                     # --- Sua Ma chung khoan (doi ten khoa chinh) - lam SAU CUNG, kiem tra trung ---
                     $newCode = $form["code"]
                     if ($newCode -and $newCode -ne $item.Code) {
@@ -1306,9 +1502,9 @@ try {
                 if ($item) {
                     $item | Add-Member -NotePropertyName StatusBeforeDelete -NotePropertyValue $item.Status -Force
                     $item | Add-Member -NotePropertyName DeletedAt -NotePropertyValue (Get-Date).ToString("yyyy-MM-dd HH:mm:ss") -Force
-                    Set-FlexStatus -Item $item -NewStatus "Đã xóa" -HanhDong "Nhan vien xoa ma nay qua man hinh tim kiem (giu $DeleteRetentionDays ngay de khoi phuc)"
+                    Set-FlexStatus -Item $item -NewStatus "Đã xóa" -HanhDong "Nhân viên xóa mã này qua màn hình tìm kiếm (giữ $DeleteRetentionDays ngày để khôi phục)"
                     Save-FlexStore -Path $FlexStorePath -Data $flex
-                    Send-ApproveNotice -Code $code -NewStatus "Đã xóa" -HanhDong "Ma da bi xoa (mem), co the khoi phuc trong $DeleteRetentionDays ngay tai tab Da xoa"
+                    Send-ApproveNotice -Code $code -NewStatus "Đã xóa" -HanhDong "Mã đã bị xóa (mềm), có thể khôi phục trong $DeleteRetentionDays ngày tại tab Đã xóa"
                 }
                 Redirect-To -Response $response -Location "/?ck_search=$([System.Uri]::EscapeDataString($q))"
                 continue
@@ -1320,11 +1516,11 @@ try {
                 $item = $flex | Where-Object { $_.Code -eq $code } | Select-Object -First 1
                 if ($item -and $item.Status -eq "Đã xóa") {
                     $restoreStatus = if ($item.StatusBeforeDelete) { $item.StatusBeforeDelete } else { "Hoạt động" }
-                    Set-FlexStatus -Item $item -NewStatus $restoreStatus -HanhDong "Nhan vien khoi phuc ma tu tab Da xoa"
+                    Set-FlexStatus -Item $item -NewStatus $restoreStatus -HanhDong "Nhân viên khôi phục mã từ tab Đã xóa"
                     $item.PSObject.Properties.Remove("DeletedAt")
                     $item.PSObject.Properties.Remove("StatusBeforeDelete")
                     Save-FlexStore -Path $FlexStorePath -Data $flex
-                    Send-ApproveNotice -Code $code -NewStatus $restoreStatus -HanhDong "Da khoi phuc ma nay tu tab Da xoa"
+                    Send-ApproveNotice -Code $code -NewStatus $restoreStatus -HanhDong "Đã khôi phục mã này từ tab Đã xóa"
                 }
                 Redirect-To -Response $response -Location "/?tab=deleted"
                 continue

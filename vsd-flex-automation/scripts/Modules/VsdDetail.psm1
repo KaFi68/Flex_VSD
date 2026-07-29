@@ -88,7 +88,14 @@ function Get-VsdSecurityDetail {
         TenChungKhoan     = Get-FieldValue -Html $html -Label "Tên chứng khoán"
         LoaiChungKhoanVSD = Get-FieldValue -Html $html -Label "Loại chứng khoán"
         MenhGia           = Get-FieldValue -Html $html -Label "Mệnh giá"
-        TongSoDangKy      = Get-FieldValue -Html $html -Label "Tổng số chứng khoán đăng ký"
+        # Trang chi tiet Chung quyen dung nhan rieng "Tong so chung quyen dang ky tai
+        # VSDC" (khac voi "Tong so chung khoan dang ky" cua Co phieu/Trai phieu/...) - thu
+        # nhan chuan truoc, khong co thi fallback sang nhan rieng cua Chung quyen.
+        TongSoDangKy      = $(
+            $v = Get-FieldValue -Html $html -Label "Tổng số chứng khoán đăng ký"
+            if (-not $v) { $v = Get-FieldValue -Html $html -Label "Tổng số chứng quyền đăng ký tại VSDC" }
+            $v
+        )
         NoiQuanLyVSDC     = Get-FieldValue -Html $html -Label "Nơi quản lý tại VSDC"
         KyHanRaw          = $kyHanRaw
         LoaiKyHan         = $loaiKyHan
