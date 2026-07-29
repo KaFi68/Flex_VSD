@@ -114,6 +114,17 @@ foreach ($code in $batch) {
         DetailId        = $code.DetailId
         MenhGiaVSD      = if ($detail) { $detail.MenhGia } else { $null }
         TongSoDangKyVSD = if ($detail) { $detail.TongSoDangKy } else { $null }
+        LoaiTraiPhieuVSD = if ($detail) { $detail.LoaiChungKhoanVSD } else { $null }
+        LoaiKyHanVSD    = if ($detail) { $detail.LoaiKyHan } else { $null }
+        KyHanVSD        = if ($detail) { $detail.KyHan } else { $null }
+        MaCKCS_VSD      = if ($detail) { $detail.MaCKCS } else { $null }
+        TenTCPHCKCS_VSD = if ($detail) { $detail.TenTCPHCKCS } else { $null }
+        LoaiChungQuyenVSD = if ($detail) { $detail.LoaiChungQuyen } else { $null }
+        PhuongThucThanhToanVSD = if ($detail) { $detail.PhuongThucThanhToan } else { $null }
+        GiaThucHienVSD  = if ($detail) { $detail.GiaThucHien } else { $null }
+        TyLeChuyenDoiVSD = if ($detail) { $detail.TyLeChuyenDoi } else { $null }
+        ThoiHanCWThangVSD = if ($detail) { $detail.ThoiHanCWThang } else { $null }
+        NgayDaoHanVSD   = if ($detail) { $detail.NgayDaoHan } else { $null }
         Status          = "Chờ duyệt TT chung"
         Source          = "Mã cũ (tồn đọng)"
         StatusChangedAt = $now
@@ -147,7 +158,7 @@ Write-Host "=== [MOC PHONG DUYET TT CHUNG] -> chuyen sang tab Chung khoan ==="
 $codesSet = $batch | ForEach-Object { $_.Code }
 foreach ($item in $flex) {
     if ($item.Code -in $codesSet) {
-        $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD
+        $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD -LoaiTraiPhieuVSD $item.LoaiTraiPhieuVSD -LoaiKyHan $item.LoaiKyHanVSD -KyHan $item.KyHanVSD -MaCKCS $item.MaCKCS_VSD -TenTCPHCKCS $item.TenTCPHCKCS_VSD -LoaiChungQuyen $item.LoaiChungQuyenVSD -PhuongThucThanhToan $item.PhuongThucThanhToanVSD -GiaThucHien $item.GiaThucHienVSD -TyLeChuyenDoi $item.TyLeChuyenDoiVSD -ThoiHanCWThang $item.ThoiHanCWThangVSD -NgayDaoHan $item.NgayDaoHanVSD
         Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Duyet TT chung xong (ma cu) -> chuyen sang tab Chung khoan"
     }
 }

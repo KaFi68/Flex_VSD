@@ -201,7 +201,7 @@ function Build-ChungKhoanTable-Detailed {
     # "Loai chung khoan").
     param($Items, [string]$EmptyLabel = "chứng khoán")
     if (-not $Items -or $Items.Count -eq 0) {
-        return "<tr><td colspan='10' style='text-align:center;color:#888'>Không có mã $EmptyLabel nào đang chờ duyệt Chứng khoán</td></tr>"
+        return "<tr><td colspan='9' style='text-align:center;color:#888'>Không có mã $EmptyLabel nào đang chờ duyệt Chứng khoán</td></tr>"
     }
     ($Items | ForEach-Object {
         if ($_.Tabs -and $_.Tabs.ChungKhoan) {
@@ -233,29 +233,39 @@ function Build-ChungKhoanTable-Detailed {
             <td>$phiLuuKy</td>
             <td>$menhGia</td>
             <td><span class='src'>$nguon</span></td>
-            <td><a class='minibtn' href='/?view=$([System.Uri]::EscapeDataString($_.Code))&from=ck'>Xem</a></td>
             <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
     }) -join "`n"
 }
 
-function Build-ChungKhoanTable-Generic {
-    # Bang rut gon dung tam cho cac loai CHUA co bang mapping chi tiet (Chung chi quy /
-    # Tin phieu / Trai phieu / Chung quyen). Se bo sung day du truong rieng khi co yeu cau.
-    param($Items, [string]$CategoryLabel)
+function Build-ChungKhoanTable-TraiPhieu {
+    # Bang chi tiet rieng cho Trai phieu - them 2 cot "Loai ky han" / "Ky han" so voi bang
+    # dung chung (Build-ChungKhoanTable-Detailed), va "Loai trai phieu"/"Noi GD" lay DONG
+    # tu VSD (khac Tin phieu la luon fix cung gia tri).
+    param($Items)
     if (-not $Items -or $Items.Count -eq 0) {
-        return "<tr><td colspan='6' style='text-align:center;color:#888'>Không có mã $CategoryLabel nào đang chờ duyệt Chứng khoán</td></tr>"
+        return "<tr><td colspan='11' style='text-align:center;color:#888'>Không có mã trái phiếu nào đang chờ duyệt Chứng khoán</td></tr>"
     }
     ($Items | ForEach-Object {
         if ($_.Tabs -and $_.Tabs.ChungKhoan) {
             $c = $_.Tabs.ChungKhoan
             $noiGdCell = Enc $c.NoiGD
             $loai = Enc $c.LoaiChungKhoan
+            $loaiTP = Enc $c.LoaiTraiPhieu
+            $phiLuuKy = Enc $c.CoThuPhiLuuKy
+            $menhGia = Enc $c.MenhGia
+            $loaiKyHan = if ($c.LoaiKyHan) { Enc $c.LoaiKyHan } else { "-" }
+            $kyHan = if ($c.KyHan) { Enc $c.KyHan } else { "-" }
             $nguon = if ($_.Source) { "$(Enc $_.Source) (từ tab TT chung)" } else { "Mã mới (từ tab TT chung)" }
         } else {
             $tc = $_.TraCuuChuyenSan
             $noiGdCell = "$(Enc $tc.NoiGDCu) &rarr; <b>$(Enc $tc.NoiGDMoi)</b>"
-            $loai = Enc $_.StockType
+            $loai = "Trái phiếu"
+            $loaiTP = Enc $_.StockType
+            $phiLuuKy = "Có"
+            $menhGia = "-"
+            $loaiKyHan = "-"
+            $kyHan = "-"
             $nguon = "Chuyển sàn (mã đã có trên Flex)"
         }
         "<tr>
@@ -263,6 +273,65 @@ function Build-ChungKhoanTable-Generic {
             <td>$(Enc $_.Name)</td>
             <td>$noiGdCell</td>
             <td>$loai</td>
+            <td>$loaiTP</td>
+            <td>$phiLuuKy</td>
+            <td>$menhGia</td>
+            <td>$loaiKyHan</td>
+            <td>$kyHan</td>
+            <td><span class='src'>$nguon</span></td>
+            <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
+        </tr>"
+    }) -join "`n"
+}
+
+function Build-ChungKhoanTable-ChungQuyen {
+    # Bang chi tiet rieng cho Chung quyen - nhieu cot dac thu (Ma CKCS, TCPH CKCS, Loai
+    # chung quyen, phuong thuc/gia thanh toan, gia thuc hien, ty le chuyen doi, thoi han,
+    # ngay dao han, ngay giao dich cuoi cung) khong giong loai nao khac.
+    param($Items)
+    if (-not $Items -or $Items.Count -eq 0) {
+        return "<tr><td colspan='16' style='text-align:center;color:#888'>Không có mã chứng quyền nào đang chờ duyệt Chứng khoán</td></tr>"
+    }
+    ($Items | ForEach-Object {
+        if ($_.Tabs -and $_.Tabs.ChungKhoan) {
+            $c = $_.Tabs.ChungKhoan
+            $noiGdCell = Enc $c.NoiGD
+            $loaiCKCoSo = Enc $c.LoaiChungKhoanCoSo
+            $maCKCS = Enc $c.MaCKCS
+            $tenTCPHCKCS = Enc $c.TenTCPHCKCS
+            $loaiCQ = Enc $c.LoaiChungQuyen
+            $ptThanhToan = Enc $c.PhuongThucThanhToan
+            $giaThanhToan = Enc $c.GiaThanhToan
+            $giaThucHien = Enc $c.GiaThucHien
+            $tyLeChuyenDoi = Enc $c.TyLeChuyenDoi
+            $thoiHan = if ($c.ThoiHanCWThang) { "$(Enc $c.ThoiHanCWThang) tháng" } else { "-" }
+            $ngayDaoHan = Enc $c.NgayDaoHan
+            $ngayCuoiCung = Enc $c.NgayGiaoDichCuoiCung
+            $nguon = if ($_.Source) { "$(Enc $_.Source) (từ tab TT chung)" } else { "Mã mới (từ tab TT chung)" }
+        } else {
+            $tc = $_.TraCuuChuyenSan
+            $noiGdCell = "$(Enc $tc.NoiGDCu) &rarr; <b>$(Enc $tc.NoiGDMoi)</b>"
+            $loaiCKCoSo = "Cổ phiếu"
+            $maCKCS = "-"; $tenTCPHCKCS = "-"; $loaiCQ = "-"; $ptThanhToan = "-"
+            $giaThanhToan = "0.0000"; $giaThucHien = "-"; $tyLeChuyenDoi = "-"
+            $thoiHan = "-"; $ngayDaoHan = "-"; $ngayCuoiCung = "-"
+            $nguon = "Chuyển sàn (mã đã có trên Flex)"
+        }
+        "<tr>
+            <td>$(Enc $_.Code)</td>
+            <td>$(Enc $_.Name)</td>
+            <td>$noiGdCell</td>
+            <td>$loaiCKCoSo</td>
+            <td>$maCKCS</td>
+            <td>$tenTCPHCKCS</td>
+            <td>$loaiCQ</td>
+            <td>$ptThanhToan</td>
+            <td>$giaThanhToan</td>
+            <td>$giaThucHien</td>
+            <td>$tyLeChuyenDoi</td>
+            <td>$thoiHan</td>
+            <td>$ngayDaoHan</td>
+            <td>$ngayCuoiCung</td>
             <td><span class='src'>$nguon</span></td>
             <td><form method='post' action='/approve?code=$($_.Code)' style='margin:0'><button type='submit' class='btn'>Duyệt</button></form></td>
         </tr>"
@@ -288,8 +357,8 @@ function Build-CkSearchResultsHtml {
             <td>$(Enc $_.StockType)</td>
             <td>-</td>
             <td>
-                <a class='minibtn' href='/?ck_search=$([System.Uri]::EscapeDataString($Query))&view=$([System.Uri]::EscapeDataString($_.Code))'>Xem</a>
-                <a class='minibtn' href='/?ck_search=$([System.Uri]::EscapeDataString($Query))&edit=$([System.Uri]::EscapeDataString($_.Code))'>Sửa</a>
+                <a class='minibtn' href='/view-security?code=$([System.Uri]::EscapeDataString($_.Code))&q=$([System.Uri]::EscapeDataString($Query))'>Xem</a>
+                <a class='minibtn' href='/edit-security?code=$([System.Uri]::EscapeDataString($_.Code))&q=$([System.Uri]::EscapeDataString($Query))'>Sửa</a>
                 <a class='minibtn minibtn-danger' href='#' onclick='if(confirm(&#39;Xoa vinh vien ma $(Enc $_.Code)? Hanh dong nay khong the hoan tac.&#39;)){document.getElementById(&#39;delform-$(Enc $_.Code)&#39;).submit();} return false;'>Xóa</a>
                 <form id='delform-$(Enc $_.Code)' method='post' action='/delete-security?code=$([System.Uri]::EscapeDataString($_.Code))' style='display:none'>
                     <input type='hidden' name='q' value='$(Enc $Query)' />
@@ -303,6 +372,45 @@ function Build-CkSearchResultsHtml {
 <tr><th>Mã TCPH</th><th>Chứng khoán</th><th>Mã giao dịch</th><th>Tên</th><th>Nơi giao dịch</th><th>Loại chứng khoán</th><th>Chặn không GD lô lẻ</th><th></th></tr>
 $rows
 </table>
+"@
+}
+
+function Build-StandalonePage {
+    # Trang HTML rieng, TOI GIAN - chi chua noi dung Xem/Sua 1 ma, KHONG kem theo phan
+    # dashboard/tab khac ben duoi. Dung khi bam Xem/Sua tu ket qua tim kiem tab Chung khoan.
+    param([string]$Title, [string]$BodyHtml)
+    return @"
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>$Title</title>
+<style>
+  body { font-family: Segoe UI, Arial, sans-serif; margin: 24px; background:#f6f7f9; color:#1a1a1a }
+  table { border-collapse: collapse; width:100%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.1) }
+  table.mini { margin-bottom:14px }
+  th, td { padding:8px 10px; border-bottom:1px solid #eee; text-align:left; font-size:13px }
+  th { background:#fafafa }
+  .btn { background:#2563eb; color:#fff; border:none; padding:6px 12px; border-radius:5px; cursor:pointer; font-size:13px }
+  .btn:hover { background:#1d4ed8 }
+  .muted { color:#999 }
+  h3 { font-size:13px; color:#666; margin:20px 0 8px }
+  .minibtn { display:inline-block; background:#f0f0f0; color:#2563eb; border:1px solid #ddd; padding:3px 9px; border-radius:4px; font-size:12px; text-decoration:none; margin-right:4px }
+  .minibtn:hover { background:#e5e7eb }
+  .editbox { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:14px 18px; margin-bottom:16px }
+  .closebar { text-align:right; margin-bottom:8px }
+  .closebar .minibtn { background:#eafbea; color:#1a7a1a; border-color:#bfe8bf }
+  .editnav { display:flex; gap:4px; border-bottom:1px solid #e5e7eb; margin-bottom:14px }
+  .editnav span { padding:6px 14px; font-size:12px }
+  .editnav-active { color:#2563eb; font-weight:600; border-bottom:2px solid #2563eb }
+  .editnav-disabled { color:#bbb }
+  .formrow { display:flex; align-items:center; margin-bottom:8px }
+  .formrow label { width:160px; font-size:12px; color:#555 }
+  .formrow input, .formrow select { flex:1; max-width:280px; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px }
+  .formrow input:disabled { background:#f5f5f5; color:#888 }
+</style>
+</head>
+<body>
+$BodyHtml
+</body></html>
 "@
 }
 
@@ -385,6 +493,22 @@ $enRows
 
     $ckBlock = if ($Item.Tabs -and $Item.Tabs.ChungKhoan) {
         $c = $Item.Tabs.ChungKhoan
+        $kyHanRows = if ($c.LoaiKyHan -or $c.KyHan) {
+            "<tr><td>Loại kỳ hạn</td><td>$(Enc $c.LoaiKyHan)</td></tr><tr><td>Kỳ hạn</td><td>$(Enc $c.KyHan)</td></tr>"
+        } else { "" }
+        $cwRows = if ($c.LoaiChungKhoanCoSo) {
+            "<tr><td>Loại chứng khoán cơ sở</td><td>$(Enc $c.LoaiChungKhoanCoSo)</td></tr>
+<tr><td>Mã CKCS</td><td>$(Enc $c.MaCKCS)</td></tr>
+<tr><td>Tên TCPH CKCS</td><td>$(Enc $c.TenTCPHCKCS)</td></tr>
+<tr><td>Loại chứng quyền</td><td>$(Enc $c.LoaiChungQuyen)</td></tr>
+<tr><td>Phương thức thanh toán</td><td>$(Enc $c.PhuongThucThanhToan)</td></tr>
+<tr><td>Giá thanh toán</td><td>$(Enc $c.GiaThanhToan)</td></tr>
+<tr><td>Giá thực hiện</td><td>$(Enc $c.GiaThucHien)</td></tr>
+<tr><td>Tỷ lệ chuyển đổi</td><td>$(Enc $c.TyLeChuyenDoi)</td></tr>
+<tr><td>Thời hạn CW theo tháng</td><td>$(Enc $c.ThoiHanCWThang)</td></tr>
+<tr><td>Ngày đáo hạn</td><td>$(Enc $c.NgayDaoHan)</td></tr>
+<tr><td>Ngày giao dịch cuối cùng</td><td>$(Enc $c.NgayGiaoDichCuoiCung)</td></tr>"
+        } else { "" }
         @"
 <table class='mini'>
 <tr><td>Nơi GD</td><td>$(Enc $c.NoiGD)</td></tr>
@@ -392,6 +516,8 @@ $enRows
 <tr><td>Loại trái phiếu</td><td>$(Enc $c.LoaiTraiPhieu)</td></tr>
 <tr><td>Có thu phí lưu ký không</td><td>$(Enc $c.CoThuPhiLuuKy)</td></tr>
 <tr><td>Mệnh giá</td><td>$(Enc $c.MenhGia)</td></tr>
+$kyHanRows
+$cwRows
 </table>
 "@
     } else {
@@ -689,9 +815,9 @@ function Build-Html {
     }
     $ckCoPhieuRows     = Build-ChungKhoanTable-Detailed -Items $ckByCategory.CoPhieu -EmptyLabel "cổ phiếu"
     $ckChungChiQuyRows = Build-ChungKhoanTable-Detailed -Items $ckByCategory.ChungChiQuy -EmptyLabel "chứng chỉ quỹ"
-    $ckTinPhieuRows    = Build-ChungKhoanTable-Generic -Items $ckByCategory.TinPhieu -CategoryLabel "tín phiếu"
-    $ckTraiPhieuRows   = Build-ChungKhoanTable-Generic -Items $ckByCategory.TraiPhieu -CategoryLabel "trái phiếu"
-    $ckChungQuyenRows  = Build-ChungKhoanTable-Generic -Items $ckByCategory.ChungQuyen -CategoryLabel "chứng quyền"
+    $ckTinPhieuRows    = Build-ChungKhoanTable-Detailed -Items $ckByCategory.TinPhieu -EmptyLabel "tín phiếu"
+    $ckTraiPhieuRows   = Build-ChungKhoanTable-TraiPhieu -Items $ckByCategory.TraiPhieu
+    $ckChungQuyenRows  = Build-ChungKhoanTable-ChungQuyen -Items $ckByCategory.ChungQuyen
 
     $ksAllStatuses    = Get-AllKiemSoatStatuses -Flex $flex
     $ksFilterHtml     = Build-KiemSoatFilterHtml -CodeFilter $KsCodeFilter -StatusFilter $KsStatusFilter -AllStatuses $ksAllStatuses
@@ -878,36 +1004,35 @@ function Build-Html {
         <div class="cktypetabs-panels">
           <div class="cktypepanel cktypepanel-cophieu">
             <table>
-              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại chứng khoán</th><th>Loại trái phiếu</th><th>Có thu phí lưu ký</th><th>Mệnh giá</th><th>Nguồn</th><th></th><th></th></tr>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại chứng khoán</th><th>Loại trái phiếu</th><th>Có thu phí lưu ký</th><th>Mệnh giá</th><th>Nguồn</th><th></th></tr>
               $ckCoPhieuRows
             </table>
           </div>
           <div class="cktypepanel cktypepanel-ccq">
             <table>
-              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại chứng khoán</th><th>Loại trái phiếu</th><th>Có thu phí lưu ký</th><th>Mệnh giá</th><th>Nguồn</th><th></th><th></th></tr>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại chứng khoán</th><th>Loại trái phiếu</th><th>Có thu phí lưu ký</th><th>Mệnh giá</th><th>Nguồn</th><th></th></tr>
               $ckChungChiQuyRows
             </table>
           </div>
           <div class="cktypepanel cktypepanel-tinphieu">
-            <p class="muted"><i>Chưa có yêu cầu chi tiết cho Tín phiếu - đang hiện bảng rút gọn.</i></p>
             <table>
-              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại CK</th><th>Nguồn</th><th></th></tr>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại chứng khoán</th><th>Loại trái phiếu</th><th>Có thu phí lưu ký</th><th>Mệnh giá</th><th>Nguồn</th><th></th></tr>
               $ckTinPhieuRows
             </table>
           </div>
           <div class="cktypepanel cktypepanel-traiphieu">
-            <p class="muted"><i>Chưa có yêu cầu chi tiết cho Trái phiếu - đang hiện bảng rút gọn.</i></p>
             <table>
-              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại CK</th><th>Nguồn</th><th></th></tr>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại chứng khoán</th><th>Loại trái phiếu</th><th>Có thu phí lưu ký</th><th>Mệnh giá</th><th>Loại kỳ hạn</th><th>Kỳ hạn</th><th>Nguồn</th><th></th></tr>
               $ckTraiPhieuRows
             </table>
           </div>
           <div class="cktypepanel cktypepanel-cq">
-            <p class="muted"><i>Chưa có yêu cầu chi tiết cho Chứng quyền - đang hiện bảng rút gọn.</i></p>
+            <div style="overflow-x:auto">
             <table>
-              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại CK</th><th>Nguồn</th><th></th></tr>
+              <tr><th>Mã CK</th><th>Tên</th><th>Nơi GD</th><th>Loại CK cơ sở</th><th>Mã CKCS</th><th>Tên TCPH CKCS</th><th>Loại chứng quyền</th><th>Phương thức thanh toán</th><th>Giá thanh toán</th><th>Giá thực hiện</th><th>Tỷ lệ chuyển đổi</th><th>Thời hạn</th><th>Ngày đáo hạn</th><th>Ngày GD cuối cùng</th><th>Nguồn</th><th></th></tr>
               $ckChungQuyenRows
             </table>
+            </div>
           </div>
         </div>
       </div>
@@ -1059,7 +1184,7 @@ try {
                     Save-FlexStore -Path $FlexStorePath -Data $flex
                     Send-ApproveNotice -Code $code -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Nhan vien tu tra cuu va sua Noi GD qua man hinh tim kiem ($oldMarket -> $newMarket)"
                 }
-                Redirect-To -Response $response -Location "/?ck_search=$([System.Uri]::EscapeDataString($code))"
+                Redirect-To -Response $response -Location "/view-security?code=$([System.Uri]::EscapeDataString($code))&q=$([System.Uri]::EscapeDataString($code))"
                 continue
             }
 
@@ -1119,6 +1244,26 @@ try {
             if ($request.HttpMethod -eq "POST" -and $path -eq "/old-codes/process-batch") {
                 Invoke-OldCodesBatch | Out-Null
                 Redirect-To -Response $response -Location "/?tab=ttchung"
+                continue
+            }
+
+            if ($path -eq "/view-security") {
+                $code = $request.QueryString["code"]
+                $q = $request.QueryString["q"]
+                $flex = Get-FlexStore -Path $FlexStorePath
+                $item = $flex | Where-Object { $_.Code -eq $code } | Select-Object -First 1
+                $body = Build-CkViewHtml -Item $item -CloseHref "/?ck_search=$([System.Uri]::EscapeDataString($q))"
+                Write-HtmlResponse -Response $response -Html (Build-StandalonePage -Title "Xem $code - Flex (Mock)" -BodyHtml $body)
+                continue
+            }
+
+            if ($path -eq "/edit-security") {
+                $code = $request.QueryString["code"]
+                $q = $request.QueryString["q"]
+                $flex = Get-FlexStore -Path $FlexStorePath
+                $item = $flex | Where-Object { $_.Code -eq $code } | Select-Object -First 1
+                $body = Build-CkEditFormHtml -Item $item -CloseHref "/?ck_search=$([System.Uri]::EscapeDataString($q))"
+                Write-HtmlResponse -Response $response -Html (Build-StandalonePage -Title "Sửa $code - Flex (Mock)" -BodyHtml $body)
                 continue
             }
 

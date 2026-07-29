@@ -39,40 +39,159 @@ function New-ChungKhoanTabData {
     # Xay dung du lieu tab "Chung khoan" theo dung bang mapping trong file "Cach thuc
     # khai ma chung khoan" (Excel dinh kem CR). MOI LOAI CHUNG KHOAN co bo truong rieng
     # (5 sheet trong Excel: Co phieu / Chung chi quy / Tin phieu / Trai phieu / Chung
-    # quyen). HIEN co day du rule cho "Co phieu" va "Chung chi quy" - cac loai con lai
-    # (Tin phieu / Trai phieu / Chung quyen) dung tam truong chung cho den khi co yeu cau.
+    # quyen). Ca 5 loai deu da co day du rule.
     #
     # Rule "Co phieu" va "Chung chi quy" - GIONG HET nhau, chi khac "Loai chung khoan":
     #   Flex "Ma chung khoan"          <- VSD "Ma chung khoan"
     #   Flex "Noi GD"                  <- VSD "San giao dich"
-    #   Flex "Loai chung khoan"        <- Co phieu: "Co phieu pho thong"
+    #   Flex "Loai chung khoan"        <- Co phieu: "Co phieu thuong" (thuong = bonus shares)
     #                                      Chung chi quy: "Chung chi quy"
     #   Flex "Loai trai phieu"         <- Luon chon "Khong phai trai phieu"
     #   Flex "Co thu phi luu ky khong" <- Luon chon "Co"
     #   Flex "Menh gia"                <- VSD "Menh gia"
+    #
+    # Rule "Tin phieu":
+    #   Flex "Ma chung khoan"          <- VSD "Ma chung khoan"
+    #   Flex "Noi GD"                  <- Luon chon "HNX" (KHONG lay tu VSD)
+    #   Flex "Loai chung khoan"        <- Luon chon "Trai phieu"
+    #   Flex "Loai trai phieu"         <- Luon chon "Tin phieu"
+    #   Flex "Co thu phi luu ky khong" <- Luon chon "Co"
+    #   Flex "Menh gia"                <- VSD "Menh gia"
+    #
+    # Rule "Trai phieu" (khac Tin phieu o cho Noi GD/Loai trai phieu/Ky han lay dong tu VSD,
+    # KHONG fix cung "HNX"/"Tin phieu" nhu Tin phieu):
+    #   Flex "Ma chung khoan"          <- VSD "Ma chung khoan"
+    #   Flex "Noi GD"                  <- VSD "San giao dich" (chu y: neu la san DCCNY thi
+    #                                      he thong Flex that se khong sinh tab Buoc gia/TTCK,
+    #                                      chi thuc hien khai+duyet den Buoc 5 - mock nay chua
+    #                                      mo phong rule do)
+    #   Flex "Loai chung khoan"        <- Luon chon "Trai phieu"
+    #   Flex "Loai trai phieu"         <- VSD "Loai chung khoan" (vd "Trai phieu doanh nghiep
+    #                                      rieng le", "Trai phieu chinh phu"...)
+    #   Flex "Co thu phi luu ky khong" <- Luon chon "Co"
+    #   Flex "Menh gia"                <- VSD "Menh gia"
+    #   Flex "Loai ky han"             <- tach tu VSD "Ky han" (Tuan/Thang/Nam)
+    #   Flex "Ky han"                  <- tach tu VSD "Ky han" (phan so)
+    #
+    # Rule "Chung quyen":
+    #   Flex "Ma chung khoan"          <- VSD "Ma chung quyen"
+    #   Flex "Noi GD"                  <- VSD "Noi giao dich"
+    #   Flex "Loai chung khoan"        <- Luon chon "Chung quyen"
+    #   Flex "Loai trai phieu"         <- Luon chon "Khong phai trai phieu"
+    #   Flex "Co thu phi luu ky khong" <- Luon chon "Co"
+    #   Flex "Menh gia"                <- mac dinh 10.000 (VSD khong co truong nay cho CW)
+    #   Flex "Loai chung khoan co so"  <- Luon chon "Co phieu"
+    #   Flex "Ma CKCS"                 <- VSD "Ma chung khoan co so"
+    #   Flex "Ten TCPH CKCS"           <- VSD "To chuc phat hanh ma chung khoan co so"
+    #   Flex "Loai chung quyen"        <- VSD "Loai chung quyen" (Mua/Ban)
+    #   Flex "Phuong thuc thanh toan"  <- VSD "Phuong thuc thuc hien chung quyen"
+    #   Flex "Gia thanh toan"          <- mac dinh he thong de 0.0000
+    #   Flex "Gia thuc hien"           <- VSD "Gia thuc hien"
+    #   Flex "Ty le chuyen doi"        <- VSD "Ty le chuyen doi" (doi ":" -> "/")
+    #   Flex "Thoi han CW theo thang"  <- tach tu VSD "Thoi han" (quy ve THANG)
+    #   Flex "Ngay dao han"            <- VSD "Ngay dao han"
+    #   Flex "Ngay giao dich cuoi cung"<- Ngay dao han - 2 nam (theo xac nhan nghiep vu)
     param(
         [Parameter(Mandatory)][string]$Code,
         [string]$Market,
         [string]$StockType,
-        [string]$MenhGiaVSD
+        [string]$MenhGiaVSD,
+        [string]$LoaiTraiPhieuVSD,     # VSD "Loai chung khoan" tren trang chi tiet - chi dung cho Trai phieu
+        [string]$LoaiKyHan,            # da tach san tu VsdDetail (Tuan/Thang/Nam) - chi dung cho Trai phieu
+        [string]$KyHan,                # da tach san tu VsdDetail (phan so) - chi dung cho Trai phieu
+        [string]$MaCKCS,               # chi dung cho Chung quyen
+        [string]$TenTCPHCKCS,          # chi dung cho Chung quyen
+        [string]$LoaiChungQuyen,       # chi dung cho Chung quyen
+        [string]$PhuongThucThanhToan,  # chi dung cho Chung quyen
+        [string]$GiaThucHien,          # chi dung cho Chung quyen
+        [string]$TyLeChuyenDoi,        # da doi ":" -> "/" san tu VsdDetail - chi dung cho Chung quyen
+        [string]$ThoiHanCWThang,       # da quy ve thang san tu VsdDetail - chi dung cho Chung quyen
+        [string]$NgayDaoHan            # chi dung cho Chung quyen, dang dd/MM/yyyy
     )
 
-    $isCoPhieu = $StockType -eq "Cổ phiếu"
-    $isChungChiQuy = $StockType -like "*Chứng chỉ quỹ*"
-
+    $noiGD = $Market
     $loaiChungKhoan = $StockType
-    if ($isCoPhieu) { $loaiChungKhoan = "Cổ phiếu phổ thông" }
-    elseif ($isChungChiQuy) { $loaiChungKhoan = "Chứng chỉ quỹ" }
+    $loaiTraiPhieu = $null
+    $coThuPhiLuuKy = $null
+    $outLoaiKyHan = $null
+    $outKyHan = $null
+    $outLoaiCKCoSo = $null
+    $outMaCKCS = $null
+    $outTenTCPHCKCS = $null
+    $outLoaiChungQuyen = $null
+    $outPhuongThucThanhToan = $null
+    $outGiaThanhToan = $null
+    $outGiaThucHien = $null
+    $outTyLeChuyenDoi = $null
+    $outThoiHanCWThang = $null
+    $outNgayDaoHan = $null
+    $outNgayGDCuoiCung = $null
 
-    $apDungRuleChung = $isCoPhieu -or $isChungChiQuy
+    if ($StockType -eq "Cổ phiếu") {
+        $loaiChungKhoan = "Cổ phiếu thưởng"
+        $loaiTraiPhieu = "Không phải trái phiếu"
+        $coThuPhiLuuKy = "Có"
+    }
+    elseif ($StockType -like "*Chứng chỉ quỹ*") {
+        $loaiChungKhoan = "Chứng chỉ quỹ"
+        $loaiTraiPhieu = "Không phải trái phiếu"
+        $coThuPhiLuuKy = "Có"
+    }
+    elseif ($StockType -like "Tín phiếu*") {
+        $noiGD = "HNX"
+        $loaiChungKhoan = "Trái phiếu"
+        $loaiTraiPhieu = "Tín phiếu"
+        $coThuPhiLuuKy = "Có"
+    }
+    elseif ($StockType -like "Trái phiếu*") {
+        $loaiChungKhoan = "Trái phiếu"
+        $loaiTraiPhieu = if ($LoaiTraiPhieuVSD) { $LoaiTraiPhieuVSD } else { $StockType }
+        $coThuPhiLuuKy = "Có"
+        $outLoaiKyHan = $LoaiKyHan
+        $outKyHan = $KyHan
+    }
+    elseif ($StockType -like "*Chứng quyền*") {
+        $loaiChungKhoan = "Chứng quyền"
+        $loaiTraiPhieu = "Không phải trái phiếu"
+        $coThuPhiLuuKy = "Có"
+        $outLoaiCKCoSo = "Cổ phiếu"
+        $outMaCKCS = $MaCKCS
+        $outTenTCPHCKCS = $TenTCPHCKCS
+        $outLoaiChungQuyen = $LoaiChungQuyen
+        $outPhuongThucThanhToan = $PhuongThucThanhToan
+        $outGiaThanhToan = "0.0000"
+        $outGiaThucHien = $GiaThucHien
+        $outTyLeChuyenDoi = $TyLeChuyenDoi
+        $outThoiHanCWThang = $ThoiHanCWThang
+        $outNgayDaoHan = $NgayDaoHan
+        if ($NgayDaoHan) {
+            try {
+                $d = [datetime]::ParseExact($NgayDaoHan, "dd/MM/yyyy", $null)
+                $outNgayGDCuoiCung = $d.AddYears(-2).ToString("dd/MM/yyyy")
+            } catch { }
+        }
+    }
 
     return [pscustomobject]@{
-        MaCK           = $Code
-        NoiGD          = $Market
-        LoaiChungKhoan = $loaiChungKhoan
-        LoaiTraiPhieu  = if ($apDungRuleChung) { "Không phải trái phiếu" } else { $null }
-        CoThuPhiLuuKy  = if ($apDungRuleChung) { "Có" } else { $null }
-        MenhGia        = if ($MenhGiaVSD) { $MenhGiaVSD } else { "10000" }
+        MaCK                = $Code
+        NoiGD               = $noiGD
+        LoaiChungKhoan      = $loaiChungKhoan
+        LoaiTraiPhieu       = $loaiTraiPhieu
+        CoThuPhiLuuKy       = $coThuPhiLuuKy
+        MenhGia             = if ($MenhGiaVSD) { $MenhGiaVSD } else { "10000" }
+        LoaiKyHan           = $outLoaiKyHan
+        KyHan               = $outKyHan
+        LoaiChungKhoanCoSo  = $outLoaiCKCoSo
+        MaCKCS              = $outMaCKCS
+        TenTCPHCKCS         = $outTenTCPHCKCS
+        LoaiChungQuyen      = $outLoaiChungQuyen
+        PhuongThucThanhToan = $outPhuongThucThanhToan
+        GiaThanhToan        = $outGiaThanhToan
+        GiaThucHien         = $outGiaThucHien
+        TyLeChuyenDoi       = $outTyLeChuyenDoi
+        ThoiHanCWThang      = $outThoiHanCWThang
+        NgayDaoHan          = $outNgayDaoHan
+        NgayGiaoDichCuoiCung = $outNgayGDCuoiCung
     }
 }
 

@@ -134,6 +134,17 @@ foreach ($code in $newCodes) {
         DetailId       = $code.DetailId
         MenhGiaVSD     = if ($detail) { $detail.MenhGia } else { $null }        # luu lai de dung cho tab Chung khoan
         TongSoDangKyVSD = if ($detail) { $detail.TongSoDangKy } else { $null }   # luu lai de dung cho tab TTCK
+        LoaiTraiPhieuVSD = if ($detail) { $detail.LoaiChungKhoanVSD } else { $null }  # chi dung cho Trai phieu
+        LoaiKyHanVSD   = if ($detail) { $detail.LoaiKyHan } else { $null }       # chi dung cho Trai phieu
+        KyHanVSD       = if ($detail) { $detail.KyHan } else { $null }           # chi dung cho Trai phieu
+        MaCKCS_VSD     = if ($detail) { $detail.MaCKCS } else { $null }               # chi dung cho Chung quyen
+        TenTCPHCKCS_VSD = if ($detail) { $detail.TenTCPHCKCS } else { $null }          # chi dung cho Chung quyen
+        LoaiChungQuyenVSD = if ($detail) { $detail.LoaiChungQuyen } else { $null }     # chi dung cho Chung quyen
+        PhuongThucThanhToanVSD = if ($detail) { $detail.PhuongThucThanhToan } else { $null }  # chi dung cho Chung quyen
+        GiaThucHienVSD = if ($detail) { $detail.GiaThucHien } else { $null }           # chi dung cho Chung quyen
+        TyLeChuyenDoiVSD = if ($detail) { $detail.TyLeChuyenDoi } else { $null }       # chi dung cho Chung quyen
+        ThoiHanCWThangVSD = if ($detail) { $detail.ThoiHanCWThang } else { $null }     # chi dung cho Chung quyen
+        NgayDaoHanVSD  = if ($detail) { $detail.NgayDaoHan } else { $null }            # chi dung cho Chung quyen
         Status         = "Chờ duyệt TT chung"
         Source         = $Source
         StatusChangedAt = $now
@@ -173,7 +184,7 @@ Write-Host "=== [MOC PHONG DUYET TT CHUNG] -> chuyen sang tab Chung khoan ==="
 $codesSet = $newCodes | ForEach-Object { $_.Code }
 foreach ($item in $flex) {
     if ($item.Code -in $codesSet) {
-        $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD
+        $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD -LoaiTraiPhieuVSD $item.LoaiTraiPhieuVSD -LoaiKyHan $item.LoaiKyHanVSD -KyHan $item.KyHanVSD -MaCKCS $item.MaCKCS_VSD -TenTCPHCKCS $item.TenTCPHCKCS_VSD -LoaiChungQuyen $item.LoaiChungQuyenVSD -PhuongThucThanhToan $item.PhuongThucThanhToanVSD -GiaThucHien $item.GiaThucHienVSD -TyLeChuyenDoi $item.TyLeChuyenDoiVSD -ThoiHanCWThang $item.ThoiHanCWThangVSD -NgayDaoHan $item.NgayDaoHanVSD
         Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Duyet TT chung xong -> chuyen sang tab Chung khoan"
     }
 }
