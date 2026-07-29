@@ -89,13 +89,13 @@ foreach ($chg in $nameChanges) {
         TenTiengAnh         = if ($oldTTChung -and $oldTTChung.TenTiengAnh -and $oldTTChung.TenTiengAnh -ne "Đang bổ sung") { $oldTTChung.TenTiengAnh } else { "Đang bổ sung" }
     }
 
-    Set-FlexStatus -Item $item -NewStatus "Chờ duyệt TT chung" -HanhDong "Sua ten TCPH/ten giao dich theo VSD ('$($chg.FlexName)' -> '$($chg.VsdName)'), cho duyet 1 lan"
+    Set-FlexStatus -Item $item -NewStatus "Chờ duyệt TT chung" -HanhDong "Sửa tên TCPH/tên giao dịch theo VSD ('$($chg.FlexName)' -> '$($chg.VsdName)'), chờ duyệt 1 lần"
     Write-Host "  $($chg.Code): '$($chg.FlexName)' -> '$($chg.VsdName)'"
 }
 Save-FlexStore -Path $FlexStorePath -Data $flex
 
-Send-WorkflowEmail -Subject "[Flex] Yeu cau duyet DOI TEN ($($nameChanges.Count) ma)" `
-    -HtmlBody "<p>Phan mem da thuc hien: phat hien $($nameChanges.Count) ma co ten khac giua VSD va Flex, da tu dong sua tab TT chung nhu sau:</p>$(Format-Table-Html -Items $nameChanges -Columns @('Code','FlexName','VsdName'))<p>De nghi nhan vien kiem tra va bam Duyet (chi 1 lan, vi ma da hoat dong san tren Flex).</p>"
+Send-WorkflowEmail -Subject "[Flex] Yêu cầu duyệt ĐỔI TÊN ($($nameChanges.Count) mã)" `
+    -HtmlBody "<p>Phần mềm đã thực hiện: phát hiện $($nameChanges.Count) mã có tên khác giữa VSD và Flex, đã tự động sửa tab TT chung như sau:</p>$(Format-Table-Html -Items $nameChanges -Columns @('Code','FlexName','VsdName'))<p>Đề nghị nhân viên kiểm tra và bấm Duyệt (chỉ 1 lần, vì mã đã hoạt động sẵn trên Flex).</p>"
 
 if (-not $AutoApprove) {
     Write-Host "Dang cho duyet (1 lan) tai tab TT chung. Chay lai voi -AutoApprove de mo phong tiep, hoac bam Duyet tren UI mock."
@@ -105,12 +105,12 @@ if (-not $AutoApprove) {
 Write-Host "=== [MOC PHONG DUYET] -> hoan tat doi ten (ma da hoat dong, khong qua tab Chung khoan) ==="
 foreach ($chg in $nameChanges) {
     if ($flexByCode.ContainsKey($chg.Code)) {
-        Set-FlexStatus -Item $flexByCode[$chg.Code] -NewStatus "Hoạt động" -HanhDong "Duyet doi ten xong - hoan tat"
+        Set-FlexStatus -Item $flexByCode[$chg.Code] -NewStatus "Hoạt động" -HanhDong "Duyệt đổi tên xong - hoàn tất"
     }
 }
 Save-FlexStore -Path $FlexStorePath -Data $flex
 
-Send-WorkflowEmail -Subject "[Flex] Da duyet xong DOI TEN ($($nameChanges.Count) ma)" `
-    -HtmlBody "<p>Cac ma sau da duoc duyet xong viec doi ten:</p>$(Format-Table-Html -Items $nameChanges -Columns @('Code','VsdName'))"
+Send-WorkflowEmail -Subject "[Flex] Đã duyệt xong ĐỔI TÊN ($($nameChanges.Count) mã)" `
+    -HtmlBody "<p>Các mã sau đã được duyệt xong việc đổi tên:</p>$(Format-Table-Html -Items $nameChanges -Columns @('Code','VsdName'))"
 
 Write-Host "Da hoan tat doi ten cho $($nameChanges.Count) ma."

@@ -71,13 +71,13 @@ foreach ($chg in $marketChanges) {
         # Buoc 3: sua truong Noi GD sang san moi -> vao thang tab "Chung khoan"
         # (khong qua tab TT chung vi ma nay da co tren Flex tu truoc, chi sua 1 truong)
         $item.Market = $chg.VsdMarket
-        Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Tra cuu thay doi Noi GD ($($chg.FlexMarket) -> $($chg.VsdMarket)), da sua tren Flex"
+        Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Tra cứu thấy đổi Nơi GD ($($chg.FlexMarket) -> $($chg.VsdMarket)), đã sửa trên Flex"
         Write-Host "  $($chg.Code): tra cuu thay Noi GD Flex=$($chg.FlexMarket) khac VSD=$($chg.VsdMarket) -> da sua sang $($chg.VsdMarket)"
     }
 }
 Save-FlexStore -Path $FlexStorePath -Data $flex
 
-Send-WorkflowEmail -Subject "[Flex] Yeu cau duyet giao dich CHUYEN SAN ($($marketChanges.Count) ma)" `
-    -HtmlBody "<p>Phan mem da thuc hien: tra cuu tren VSD phat hien $($marketChanges.Count) ma co Noi giao dich khac voi Flex, da tu dong sua truong Noi GD tren tab Chung khoan nhu sau (cot 'FlexMarket' la gia tri CU truoc khi sua):</p>$(Format-Table-Html -Items $marketChanges -Columns @('Code','Name','FlexMarket','VsdMarket'))<p>De nghi nhan vien kiem tra va bam Duyet de xac nhan thay doi.</p>"
+Send-WorkflowEmail -Subject "[Flex] Yêu cầu duyệt giao dịch CHUYỂN SÀN ($($marketChanges.Count) mã)" `
+    -HtmlBody "<p>Phần mềm đã thực hiện: tra cứu trên VSD phát hiện $($marketChanges.Count) mã có Nơi giao dịch khác với Flex, đã tự động sửa trường Nơi GD trên tab Chứng khoán như sau (cột 'FlexMarket' là giá trị CŨ trước khi sửa):</p>$(Format-Table-Html -Items $marketChanges -Columns @('Code','Name','FlexMarket','VsdMarket'))<p>Đề nghị nhân viên kiểm tra và bấm Duyệt để xác nhận thay đổi.</p>"
 
 Write-Host "Da xu ly xong buoc chuyen san (dang Cho duyet). TODO: mail bao truoc 1 ngay (muc 5.2 CR) can them du lieu ngay hieu luc tu VSD."

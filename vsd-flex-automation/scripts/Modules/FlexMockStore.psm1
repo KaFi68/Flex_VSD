@@ -24,15 +24,24 @@ function Save-FlexStore {
 }
 
 function Set-FlexStatus {
+    # LUU Y: PS 5.1 co 2 bug la lien quan array can tranh:
+    #   1. Bam @() quanh 1 System.Collections.Generic.List[object] RONG se nem
+    #      "Argument types do not match" -> TUYET DOI khong dung kieu List[], luon dung
+    #      array thuong (@()).
+    #   2. "$x = if (...) { @($y) } else { @() }" - neu $y la mang 1 phan tu, PowerShell
+    #      "bung" ket qua cua if-block ve dung 1 object (khong con la mang) khi gan bien ->
+    #      phai bam @(...) BAO NGOAI CA if/else, khong bam ben trong tung nhanh.
     param([Parameter(Mandatory)]$Item, [Parameter(Mandatory)][string]$NewStatus, [Parameter(Mandatory)][string]$HanhDong)
     $Item.Status = $NewStatus
     $Item.StatusChangedAt = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-    if (-not $Item.LichSuDuyet) {
-        $Item | Add-Member -NotePropertyName LichSuDuyet -NotePropertyValue (New-Object System.Collections.Generic.List[object]) -Force
-    }
     $entry = [pscustomobject]@{ ThoiGian = $Item.StatusChangedAt; HanhDong = $HanhDong; TrangThai = $NewStatus }
-    # LichSuDuyet co the la array thuong (sau khi doc tu JSON) chu khong phai List - dung + de cong dong bo
-    $Item.LichSuDuyet = @($Item.LichSuDuyet) + @($entry)
+    $existing = @(if ($Item.LichSuDuyet) { $Item.LichSuDuyet } else { @() })
+    $newHistory = $existing + @($entry)
+    if ($Item.PSObject.Properties['LichSuDuyet']) {
+        $Item.LichSuDuyet = $newHistory
+    } else {
+        $Item | Add-Member -NotePropertyName LichSuDuyet -NotePropertyValue $newHistory -Force
+    }
 }
 
 function New-ChungKhoanTabData {

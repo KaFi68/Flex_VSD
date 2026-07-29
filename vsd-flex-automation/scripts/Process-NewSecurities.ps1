@@ -148,7 +148,7 @@ foreach ($code in $newCodes) {
         Status         = "Chờ duyệt TT chung"
         Source         = $Source
         StatusChangedAt = $now
-        LichSuDuyet    = @([pscustomobject]@{ ThoiGian = $now; HanhDong = "Nhap tab TT chung (Ten TCPH lay tu trang chi tiet VSD)"; TrangThai = "Chờ duyệt TT chung" })
+        LichSuDuyet    = @([pscustomobject]@{ ThoiGian = $now; HanhDong = "Nhập tab TT chung (Tên TCPH lấy từ trang chi tiết VSD)"; TrangThai = "Chờ duyệt TT chung" })
         Tabs           = [pscustomobject]@{
             TTChung     = $ttChung
             ChungKhoan  = $null
@@ -169,8 +169,8 @@ $ttChungDisplay = $flex | Where-Object { $_.Code -in ($newCodes | ForEach-Object
         MaISIN       = $_.Tabs.TTChung.MaISIN
     }
 }
-Send-WorkflowEmail -Subject "[Flex] Yeu cau duyet tab TT chung ($($newCodes.Count) ma moi)" `
-    -HtmlBody "<p>Phan mem da thuc hien: kiem tra tren VSD phat hien $($newCodes.Count) ma chung khoan MOI chua co tren Flex, va da tu dong nhap cac thong tin sau vao tab TT chung (man hinh 020004):</p>$(Format-Table-Html -Items $ttChungDisplay -Columns @('Code','TenTCPH','ThiTruong','NoiQuanLyVSD','MaISIN'))<p>De nghi nhan vien kiem tra va bam Duyet de chuyen sang buoc nhap tab Chung khoan.</p>"
+Send-WorkflowEmail -Subject "[Flex] Yêu cầu duyệt tab TT chung ($($newCodes.Count) mã mới)" `
+    -HtmlBody "<p>Phần mềm đã thực hiện: kiểm tra trên VSD phát hiện $($newCodes.Count) mã chứng khoán MỚI chưa có trên Flex, và đã tự động nhập các thông tin sau vào tab TT chung (màn hình 020004):</p>$(Format-Table-Html -Items $ttChungDisplay -Columns @('Code','TenTCPH','ThiTruong','NoiQuanLyVSD','MaISIN'))<p>Đề nghị nhân viên kiểm tra và bấm Duyệt để chuyển sang bước nhập tab Chứng khoán.</p>"
 
 if (-not $AutoApprove) {
     Write-Host ""
@@ -185,7 +185,7 @@ $codesSet = $newCodes | ForEach-Object { $_.Code }
 foreach ($item in $flex) {
     if ($item.Code -in $codesSet) {
         $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD -LoaiTraiPhieuVSD $item.LoaiTraiPhieuVSD -LoaiKyHan $item.LoaiKyHanVSD -KyHan $item.KyHanVSD -MaCKCS $item.MaCKCS_VSD -TenTCPHCKCS $item.TenTCPHCKCS_VSD -LoaiChungQuyen $item.LoaiChungQuyenVSD -PhuongThucThanhToan $item.PhuongThucThanhToanVSD -GiaThucHien $item.GiaThucHienVSD -TyLeChuyenDoi $item.TyLeChuyenDoiVSD -ThoiHanCWThang $item.ThoiHanCWThangVSD -NgayDaoHan $item.NgayDaoHanVSD
-        Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Duyet TT chung xong -> chuyen sang tab Chung khoan"
+        Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Duyệt TT chung xong -> chuyển sang tab Chứng khoán"
     }
 }
 Save-FlexStore -Path $FlexStorePath -Data $flex
@@ -198,8 +198,8 @@ $chungKhoanDisplay = $flex | Where-Object { $_.Code -in $codesSet } | ForEach-Ob
         MenhGia        = $_.Tabs.ChungKhoan.MenhGia
     }
 }
-Send-WorkflowEmail -Subject "[Flex] Yeu cau duyet tab Chung khoan ($($newCodes.Count) ma moi)" `
-    -HtmlBody "<p>Phan mem da thuc hien: sau khi tab TT chung duoc duyet, da tu dong nhap tiep cac thong tin sau vao tab Chung khoan:</p>$(Format-Table-Html -Items $chungKhoanDisplay -Columns @('Code','NoiGD','LoaiChungKhoan','MenhGia'))<p>De nghi nhan vien kiem tra va bam Duyet de hoan tat khai ma moi.</p>"
+Send-WorkflowEmail -Subject "[Flex] Yêu cầu duyệt tab Chứng khoán ($($newCodes.Count) mã mới)" `
+    -HtmlBody "<p>Phần mềm đã thực hiện: sau khi tab TT chung được duyệt, đã tự động nhập tiếp các thông tin sau vào tab Chứng khoán:</p>$(Format-Table-Html -Items $chungKhoanDisplay -Columns @('Code','NoiGD','LoaiChungKhoan','MenhGia'))<p>Đề nghị nhân viên kiểm tra và bấm Duyệt để hoàn tất khai mã mới.</p>"
 
 if (-not $AutoApprove) { return }
 

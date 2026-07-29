@@ -42,7 +42,7 @@ $flexList = $vsd[0..($vsd.Count - 1 - $MissingCount)] | ForEach-Object {
         ManagementArea = $_.ManagementArea
         Status         = "Hoạt động"   # trang thai binh thuong trong Flex
         StatusChangedAt = $seedTime
-        LichSuDuyet    = @([pscustomobject]@{ ThoiGian = $seedTime; HanhDong = "Khoi tao du lieu demo"; TrangThai = "Hoạt động" })
+        LichSuDuyet    = @([pscustomobject]@{ ThoiGian = $seedTime; HanhDong = "Khởi tạo dữ liệu demo"; TrangThai = "Hoạt động" })
     }
 }
 

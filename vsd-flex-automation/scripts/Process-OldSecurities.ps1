@@ -128,7 +128,7 @@ foreach ($code in $batch) {
         Status          = "Chờ duyệt TT chung"
         Source          = "Mã cũ (tồn đọng)"
         StatusChangedAt = $now
-        LichSuDuyet     = @([pscustomobject]@{ ThoiGian = $now; HanhDong = "Nhap tab TT chung (ma cu ton dong, Ten TCPH lay tu trang chi tiet VSD)"; TrangThai = "Chờ duyệt TT chung" })
+        LichSuDuyet     = @([pscustomobject]@{ ThoiGian = $now; HanhDong = "Nhập tab TT chung (mã cũ tồn đọng, Tên TCPH lấy từ trang chi tiết VSD)"; TrangThai = "Chờ duyệt TT chung" })
         Tabs            = [pscustomobject]@{
             TTChung    = $ttChung
             ChungKhoan = $null
@@ -145,8 +145,8 @@ Write-Host "Con lai trong hang doi sau lo nay: $($remaining.Count) ma."
 $ttChungDisplay = $flex | Where-Object { $_.Code -in ($batch | ForEach-Object { $_.Code }) } | ForEach-Object {
     [pscustomobject]@{ Code = $_.Code; TenTCPH = $_.Tabs.TTChung.TenTCPH; ThiTruong = $_.Tabs.TTChung.ThiTruong; NoiQuanLyVSD = $_.Tabs.TTChung.NoiQuanLyVSD; MaISIN = $_.Tabs.TTChung.MaISIN }
 }
-Send-WorkflowEmail -Subject "[Flex] Yeu cau duyet tab TT chung - MA CU TON DONG ($($batch.Count) ma)" `
-    -HtmlBody "<p>Phan mem da thuc hien: lay $($batch.Count) ma tu hang doi ma chung khoan cu ton dong (con lai $($remaining.Count) ma trong hang doi), da tu dong nhap vao tab TT chung:</p>$(Format-Table-Html -Items $ttChungDisplay -Columns @('Code','TenTCPH','ThiTruong','NoiQuanLyVSD','MaISIN'))<p>De nghi nhan vien kiem tra va bam Duyet de chuyen sang buoc nhap tab Chung khoan.</p>"
+Send-WorkflowEmail -Subject "[Flex] Yêu cầu duyệt tab TT chung - MÃ CŨ TỒN ĐỌNG ($($batch.Count) mã)" `
+    -HtmlBody "<p>Phần mềm đã thực hiện: lấy $($batch.Count) mã từ hàng đợi mã chứng khoán cũ tồn đọng (còn lại $($remaining.Count) mã trong hàng đợi), đã tự động nhập vào tab TT chung:</p>$(Format-Table-Html -Items $ttChungDisplay -Columns @('Code','TenTCPH','ThiTruong','NoiQuanLyVSD','MaISIN'))<p>Đề nghị nhân viên kiểm tra và bấm Duyệt để chuyển sang bước nhập tab Chứng khoán.</p>"
 
 if (-not $AutoApprove) {
     Write-Host "Dang o tab 'TT chung' - cho duyet. Chay lai voi -AutoApprove de mo phong tiep."
@@ -159,7 +159,7 @@ $codesSet = $batch | ForEach-Object { $_.Code }
 foreach ($item in $flex) {
     if ($item.Code -in $codesSet) {
         $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD -LoaiTraiPhieuVSD $item.LoaiTraiPhieuVSD -LoaiKyHan $item.LoaiKyHanVSD -KyHan $item.KyHanVSD -MaCKCS $item.MaCKCS_VSD -TenTCPHCKCS $item.TenTCPHCKCS_VSD -LoaiChungQuyen $item.LoaiChungQuyenVSD -PhuongThucThanhToan $item.PhuongThucThanhToanVSD -GiaThucHien $item.GiaThucHienVSD -TyLeChuyenDoi $item.TyLeChuyenDoiVSD -ThoiHanCWThang $item.ThoiHanCWThangVSD -NgayDaoHan $item.NgayDaoHanVSD
-        Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Duyet TT chung xong (ma cu) -> chuyen sang tab Chung khoan"
+        Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Duyệt TT chung xong (mã cũ) -> chuyển sang tab Chứng khoán"
     }
 }
 Save-FlexStore -Path $FlexStorePath -Data $flex
@@ -167,8 +167,8 @@ Save-FlexStore -Path $FlexStorePath -Data $flex
 $chungKhoanDisplay = $flex | Where-Object { $_.Code -in $codesSet } | ForEach-Object {
     [pscustomobject]@{ Code = $_.Code; NoiGD = $_.Tabs.ChungKhoan.NoiGD; LoaiChungKhoan = $_.Tabs.ChungKhoan.LoaiChungKhoan; MenhGia = $_.Tabs.ChungKhoan.MenhGia }
 }
-Send-WorkflowEmail -Subject "[Flex] Yeu cau duyet tab Chung khoan - MA CU TON DONG ($($batch.Count) ma)" `
-    -HtmlBody "<p>Phan mem da thuc hien: sau khi tab TT chung duoc duyet, da nhap tiep tab Chung khoan cho cac ma cu sau:</p>$(Format-Table-Html -Items $chungKhoanDisplay -Columns @('Code','NoiGD','LoaiChungKhoan','MenhGia'))<p>De nghi nhan vien kiem tra va bam Duyet de hoan tat.</p>"
+Send-WorkflowEmail -Subject "[Flex] Yêu cầu duyệt tab Chứng khoán - MÃ CŨ TỒN ĐỌNG ($($batch.Count) mã)" `
+    -HtmlBody "<p>Phần mềm đã thực hiện: sau khi tab TT chung được duyệt, đã nhập tiếp tab Chứng khoán cho các mã cũ sau:</p>$(Format-Table-Html -Items $chungKhoanDisplay -Columns @('Code','NoiGD','LoaiChungKhoan','MenhGia'))<p>Đề nghị nhân viên kiểm tra và bấm Duyệt để hoàn tất.</p>"
 
 if (-not $AutoApprove) { return }
 

@@ -38,17 +38,17 @@ function Send-SummaryEmail {
 
     $body = @"
 <html><body style="font-family:Segoe UI,Arial,sans-serif;font-size:13px">
-<p><b>Bao cao tong hop - quet VSD va cap nhat Flex (mock demo)</b><br/>Thoi gian: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")</p>
+<p><b>Báo cáo tổng hợp - quét VSD và cập nhật Flex (mock demo)</b><br/>Thời gian: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")</p>
 <ul>
-  <li>Khai ma chung khoan moi: <b>$NewCount</b> ma (xem chi tiet trong 2 mail duyet Tien trinh 1/2 truoc do)</li>
-  <li>Sua ma chuyen san: <b>$MarketCount</b> ma</li>
-  <li>Sua ma can chinh ten: <b>$NameCount</b> ma</li>
+  <li>Khai mã chứng khoán mới: <b>$NewCount</b> mã (xem chi tiết trong 2 mail duyệt tiến trình 1/2 trước đó)</li>
+  <li>Sửa mã chuyển sàn: <b>$MarketCount</b> mã</li>
+  <li>Sửa mã cần chỉnh tên: <b>$NameCount</b> mã</li>
 </ul>
-<p style="color:#888">Day la mail tong hop tuong ung muc 5.1 trong CR gui phong Luu ky. Du lieu Flex dang la MOCK (demo), chua noi that voi he thong Flex.</p>
+<p style="color:#888">Đây là mail tổng hợp tương ứng mục 5.1 trong CR gửi phòng Lưu ký. Dữ liệu Flex đang là MOCK (demo), chưa nối thật với hệ thống Flex.</p>
 </body></html>
 "@
     Send-MailMessage -SmtpServer $cfg.SmtpServer -Port $cfg.Port -UseSsl `
-        -From $cfg.From -To $cfg.To -Subject "[TEST] VSD-Flex - Bao cao tong hop tu dong hoa" `
+        -From $cfg.From -To $cfg.To -Subject "[TEST] VSD-Flex - Báo cáo tổng hợp tự động hóa" `
         -Body $body -BodyAsHtml -Credential $cred -Encoding ([System.Text.Encoding]::UTF8)
     Write-Host "Da gui mail tong hop."
 }

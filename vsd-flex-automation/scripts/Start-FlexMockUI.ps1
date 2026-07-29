@@ -59,6 +59,13 @@ function Enc {
     return [System.Net.WebUtility]::HtmlEncode($Text)
 }
 
+function Enc-Multiline {
+    # Giong Enc nhung xuong dong (`n) trong noi dung se thanh <br/> that su - dung cho
+    # HanhDong khi liet ke nhieu truong da sua (moi truong 1 dong cho de theo doi).
+    param([string]$Text)
+    return ([System.Net.WebUtility]::HtmlEncode($Text) -replace "`n", "<br/>")
+}
+
 function Send-ApproveNotice {
     param([string]$Code, [string]$NewStatus, [string]$HanhDong = "")
     if (-not (Test-Path $EmailConfigPath)) { return }
@@ -66,7 +73,7 @@ function Send-ApproveNotice {
         $cfg = Get-Content $EmailConfigPath -Raw | ConvertFrom-Json
         $securePassword = ConvertTo-SecureString $cfg.Password -AsPlainText -Force
         $cred = New-Object System.Management.Automation.PSCredential($cfg.From, $securePassword)
-        $hanhDongLine = if ($HanhDong) { "<p>Hệ thống đã thực hiện: <b>$([System.Net.WebUtility]::HtmlEncode($HanhDong))</b></p>" } else { "" }
+        $hanhDongLine = if ($HanhDong) { "<p>Hệ thống đã thực hiện:<br/><b>$(Enc-Multiline $HanhDong)</b></p>" } else { "" }
         Send-MailMessage -SmtpServer $cfg.SmtpServer -Port $cfg.Port -UseSsl `
             -From $cfg.From -To $cfg.To -Subject "[Flex] Cap nhat ma $Code" `
             -Body "<p>Mã <b>$Code</b> vừa có cập nhật. Trạng thái mới: <b>$NewStatus</b></p>$hanhDongLine" -BodyAsHtml `
@@ -148,6 +155,8 @@ function Build-LoginHtml {
 }
 
 $NoiGDOptions = @("HOSE","HNX","OTC","UPCOM","WFT","DCCNY","BOND")
+$NoiLuuKyOptions = @("Trụ sở chính","Chi nhánh")
+$LoaiChungKhoanOptions = @("Cổ phiếu","Chứng chỉ quỹ","Tín phiếu","Trái phiếu","Chứng quyền")
 
 function Get-SyntheticId {
     param([string]$Code, [int]$Seed)
@@ -419,16 +428,39 @@ function Build-DeletedBlockedHtml {
     return "<div class='editbox'><p class='muted'>Mã <b>$(Enc $Item.Code)</b> đã bị xóa nên không thể $Action. Vui lòng vào tab <b>Đã xóa</b> để khôi phục trước.</p><form method='post' action='/restore-security?code=$([System.Uri]::EscapeDataString($Item.Code))' style='margin:0'><button type='submit' class='btn'>Khôi phục ngay</button></form></div>"
 }
 
+function Build-SelectOptionsHtml {
+    # Dung chung cho cac dropdown trong man Sua. Neu gia tri hien tai KHONG nam trong
+    # danh sach option chuan (vd du lieu VSD co bien the la), tu them no vao dau danh
+    # sach va danh dau selected - tranh viec bam "Cap nhat" ma khong sua gi lai vo tinh
+    # doi sang gia tri khac trong dropdown.
+    param([string[]]$Options, [string]$CurrentValue)
+    $all = @(if ($CurrentValue -and ($Options -notcontains $CurrentValue)) { @($CurrentValue) + $Options } else { $Options })
+    return ($all | ForEach-Object {
+        $sel = if ($_ -eq $CurrentValue) { " selected" } else { "" }
+        "<option value='$(Enc $_)'$sel>$(Enc $_)</option>"
+    }) -join ''
+}
+
 function Build-CkEditFormHtml {
+    # Sua duoc TAT CA cac truong TRU "Trang thai CK" (truong nay do luong Duyet dieu
+    # khien tu dong - cho sua tay se lam sai lech voi Lich su duyet/D-S Kiem soat).
     param($Item, [string]$CloseHref = "/")
     if (-not $Item) { return "<p class='muted'>Không tìm thấy mã để sửa.</p>" }
     if ($Item.Status -eq "Đã xóa") { return Build-DeletedBlockedHtml -Item $Item -Action "sửa" }
-    $maQuiUoc = Get-SyntheticId -Code $Item.Code -Seed 17
-    $maTcph   = Get-SyntheticId -Code $Item.Code -Seed 31
+    $maQuiUoc = if ($Item.MaQuiUocOverride) { $Item.MaQuiUocOverride } else { Get-SyntheticId -Code $Item.Code -Seed 17 }
+    $maTcph   = if ($Item.MaTCPHOverride) { $Item.MaTCPHOverride } else { Get-SyntheticId -Code $Item.Code -Seed 31 }
     $options = ($NoiGDOptions | ForEach-Object {
         $sel = if ($_ -eq $Item.Market) { " selected" } else { "" }
         "<option value='$_'$sel>$_</option>"
     }) -join ''
+    $noiLuuKyOptionsHtml = Build-SelectOptionsHtml -Options $NoiLuuKyOptions -CurrentValue $Item.ManagementArea
+    $loaiCKOptionsHtml = Build-SelectOptionsHtml -Options $LoaiChungKhoanOptions -CurrentValue $Item.StockType
+    $loaiTraiPhieuVal = if ($Item.Tabs -and $Item.Tabs.ChungKhoan) { $Item.Tabs.ChungKhoan.LoaiTraiPhieu } else { $null }
+    $loaiTraiPhieuField = if ($null -ne $loaiTraiPhieuVal) {
+        "<input type='text' name='loaitraiphieu' value=`"$(Enc $loaiTraiPhieuVal)`" />"
+    } else {
+        "<input type='text' value='-' disabled title='Chưa có dữ liệu (chỉ sinh sau khi duyệt xong tab Chứng khoán)' />"
+    }
     return @"
 <div class="editbox">
   <div class="closebar"><a class="minibtn" href="$CloseHref">&#10003; Đóng</a></div>
@@ -437,15 +469,15 @@ function Build-CkEditFormHtml {
     <span class="editnav-disabled">Bước giá</span>
     <span class="editnav-disabled">TT CK</span>
   </div>
-  <form method="post" action="/update-market?code=$([System.Uri]::EscapeDataString($Item.Code))">
-    <div class="formrow"><label>Mã qui ước</label><input type="text" value="$maQuiUoc" disabled /></div>
-    <div class="formrow"><label>Mã TCPH</label><input type="text" value="$maTcph" disabled /></div>
-    <div class="formrow"><label>Mã chứng khoán</label><input type="text" value="$(Enc $Item.Code)" disabled /></div>
+  <form method="post" action="/update-security?code=$([System.Uri]::EscapeDataString($Item.Code))">
+    <div class="formrow"><label>Mã qui ước</label><input type="text" name="maquiuoc" value="$(Enc $maQuiUoc)" /></div>
+    <div class="formrow"><label>Mã TCPH</label><input type="text" name="matcph" value="$(Enc $maTcph)" /></div>
+    <div class="formrow"><label>Mã chứng khoán</label><input type="text" name="code" value="$(Enc $Item.Code)" /></div>
     <div class="formrow"><label>Nơi GD</label><select name="noigd">$options</select></div>
-    <div class="formrow"><label>Nơi lưu ký</label><input type="text" value="$(Enc $Item.ManagementArea)" disabled /></div>
-    <div class="formrow"><label>Loại chứng khoán</label><input type="text" value="$(Enc $Item.StockType)" disabled /></div>
+    <div class="formrow"><label>Nơi lưu ký</label><select name="noiluuky">$noiLuuKyOptionsHtml</select></div>
+    <div class="formrow"><label>Loại chứng khoán</label><select name="loaick">$loaiCKOptionsHtml</select></div>
     <div class="formrow"><label>Trạng thái CK</label><input type="text" value="$(Enc $Item.Status)" disabled /></div>
-    <div class="formrow"><label>Loại trái phiếu</label><input type="text" value="-" disabled /></div>
+    <div class="formrow"><label>Loại trái phiếu</label>$loaiTraiPhieuField</div>
     <button type="submit" class="btn">Cập nhật</button>
   </form>
 </div>
@@ -456,8 +488,8 @@ function Build-CkViewHtml {
     param($Item, [string]$CloseHref = "/")
     if (-not $Item) { return "<p class='muted'>Không tìm thấy mã để xem.</p>" }
     if ($Item.Status -eq "Đã xóa") { return Build-DeletedBlockedHtml -Item $Item -Action "xem" }
-    $maQuiUoc = Get-SyntheticId -Code $Item.Code -Seed 17
-    $maTcph   = Get-SyntheticId -Code $Item.Code -Seed 31
+    $maQuiUoc = if ($Item.MaQuiUocOverride) { $Item.MaQuiUocOverride } else { Get-SyntheticId -Code $Item.Code -Seed 17 }
+    $maTcph   = if ($Item.MaTCPHOverride) { $Item.MaTCPHOverride } else { Get-SyntheticId -Code $Item.Code -Seed 31 }
 
     $ttChungBlock = if ($Item.Tabs -and $Item.Tabs.TTChung) {
         $t = $Item.Tabs.TTChung
@@ -571,8 +603,9 @@ function Build-KiemSoatHtmlForItem {
     if (-not $Item.LichSuDuyet -or @($Item.LichSuDuyet).Count -eq 0) {
         return "<p class='muted'><i>Chưa có lịch sử duyệt.</i></p>"
     }
-    $rows = (@($Item.LichSuDuyet) | Sort-Object ThoiGian -Descending | ForEach-Object {
-        "<tr><td>$(Enc $_.ThoiGian)</td><td>$(Enc $_.HanhDong)</td><td>$(Enc $_.TrangThai)</td></tr>"
+    $sorted = @($Item.LichSuDuyet | Sort-Object ThoiGian -Descending)
+    $rows = ($sorted | ForEach-Object {
+        "<tr><td>$(Enc $_.ThoiGian)</td><td>$(Enc-Multiline $_.HanhDong)</td><td>$(Enc $_.TrangThai)</td></tr>"
     }) -join "`n"
     return "<table class='mini'><tr><td><b>Thời gian</b></td><td><b>Hành động</b></td><td><b>Trạng thái</b></td></tr>$rows</table>"
 }
@@ -671,7 +704,7 @@ function Invoke-OldCodesBatch {
     Save-FlexStore -Path $FlexStorePath -Data $flex
     Save-OldCodesBacklog -Backlog $remaining
     $batchCodesStr = ($batch | ForEach-Object { $_.Code }) -join ', '
-    Send-ApproveNotice -Code $batchCodesStr -NewStatus "Chờ duyệt TT chung" -HanhDong "Da nhap $($batch.Count) ma cu ton dong vao tab TT chung qua UI. Con lai $($remaining.Count) ma trong hang doi."
+    Send-ApproveNotice -Code $batchCodesStr -NewStatus "Chờ duyệt TT chung" -HanhDong "Đã nhập $($batch.Count) mã cũ tồn đọng vào tab TT chung qua UI. Còn lại $($remaining.Count) mã trong hàng đợi."
     return @{ Ok = $true; Processed = $batch.Count; Remaining = $remaining.Count }
 }
 
@@ -788,7 +821,7 @@ function Build-KiemSoatTable {
         return "<tr><td colspan='5' style='text-align:center;color:#888'>Không có kết quả khớp với bộ lọc.</td></tr>"
     }
     ($sorted | ForEach-Object {
-        "<tr><td>$(Enc $_.ThoiGian)</td><td>$(Enc $_.Code)</td><td>$(Enc $_.Name)</td><td>$(Enc $_.HanhDong)</td><td>$(Enc $_.TrangThai)</td></tr>"
+        "<tr><td>$(Enc $_.ThoiGian)</td><td>$(Enc $_.Code)</td><td>$(Enc $_.Name)</td><td>$(Enc-Multiline $_.HanhDong)</td><td>$(Enc $_.TrangThai)</td></tr>"
     }) -join "`n"
 }
 
@@ -1132,30 +1165,32 @@ try {
                 if ($item) {
                     $oldStatus = $item.Status
                     $newStatus = Get-NextStatus -CurrentStatus $oldStatus
-                    $hanhDong = "Nhan vien bam Duyet tren man hinh (mock)"
+                    $hanhDong = "Nhân viên bấm Duyệt trên màn hình (mock)"
 
                     if ($oldStatus -eq "Chờ duyệt TT chung" -and $item.Tabs -and $item.Tabs.ChungKhoan) {
                         # Muc 4 (doi ten): ma da hoat dong san tren Flex, tab Chung khoan da co du lieu
                         # tu truoc -> duyet 1 lan la xong, khong can qua lai tab Chung khoan.
                         $newStatus = "Hoạt động"
-                        $hanhDong = "Duyet doi ten xong - hoan tat (ma da hoat dong san, khong qua tab Chung khoan)"
+                        $hanhDong = "Duyệt đổi tên xong - hoàn tất (mã đã hoạt động sẵn, không qua tab Chứng khoán)"
                     } elseif ($oldStatus -eq "Chờ duyệt TT chung") {
                         # Chuyen tu tab TT chung sang tab Chung khoan: nhap tab Chung khoan
                         if (-not $item.Tabs) { $item | Add-Member -NotePropertyName Tabs -NotePropertyValue ([pscustomobject]@{ TTChung=$null; ChungKhoan=$null; TTCK=$null }) -Force }
                         $item.Tabs.ChungKhoan = New-ChungKhoanTabData -Code $item.Code -Market $item.Market -StockType $item.StockType -MenhGiaVSD $item.MenhGiaVSD
-                        $hanhDong = "Duyet TT chung xong -> chuyen sang tab Chung khoan"
+                        $hanhDong = "Duyệt TT chung xong -> chuyển sang tab Chứng khoán"
                     } elseif ($oldStatus -eq "Chờ duyệt Chứng khoán") {
                         # Hoan tat: dien tab TTCK ngam (khong hien thi tab rieng theo yeu cau UI)
                         if ($item.Tabs) {
-                            $item.Tabs.TTCK = [pscustomobject]@{
+                            $ttck = [pscustomobject]@{
                                 DonViGiaoDich         = "1000"
                                 KhoiLuongNiemYet      = if ($item.TongSoDangKyVSD) { $item.TongSoDangKyVSD } else { "N/A (theo tổng số đăng ký tại VSD)" }
                                 NgayNiemYet           = (Get-Date -Format "yyyy-MM-dd")
                                 MuaBanCungNgay        = "Có"
                                 CheckRoomNDTNuocNgoai = "Có"
                             }
+                            if ($item.Tabs.PSObject.Properties['TTCK']) { $item.Tabs.TTCK = $ttck }
+                            else { $item.Tabs | Add-Member -NotePropertyName TTCK -NotePropertyValue $ttck -Force }
                         }
-                        $hanhDong = "Duyet Chung khoan xong -> hoan tat"
+                        $hanhDong = "Duyệt Chứng khoán xong -> hoàn tất"
                     }
 
                     Set-FlexStatus -Item $item -NewStatus $newStatus -HanhDong $hanhDong
@@ -1166,25 +1201,97 @@ try {
                 continue
             }
 
-            if ($request.HttpMethod -eq "POST" -and $path -eq "/update-market") {
+            if ($request.HttpMethod -eq "POST" -and $path -eq "/update-security") {
+                # Man hinh Sua cho sua duoc TAT CA truong TRU "Trang thai CK" (truong do
+                # do luong Duyet dieu khien, khong nhan tu form nay).
                 $code = $request.QueryString["code"]
                 $form = Parse-FormBody -Request $request
-                $newMarket = $form["noigd"]
                 $flex = [System.Collections.Generic.List[object]](Get-FlexStore -Path $FlexStorePath)
                 $item = $flex | Where-Object { $_.Code -eq $code } | Select-Object -First 1
-                if ($item -and $newMarket -and $newMarket -ne $item.Market) {
-                    $oldMarket = $item.Market
-                    $item | Add-Member -NotePropertyName TraCuuChuyenSan -NotePropertyValue ([pscustomobject]@{
-                        NoiGDCu   = $oldMarket
-                        NoiGDMoi  = $newMarket
-                        TraCuuLuc = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-                    }) -Force
-                    $item.Market = $newMarket
-                    Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Nhan vien tu tra cuu va sua Noi GD qua man hinh tim kiem ($oldMarket -> $newMarket)"
-                    Save-FlexStore -Path $FlexStorePath -Data $flex
-                    Send-ApproveNotice -Code $code -NewStatus "Chờ duyệt Chứng khoán" -HanhDong "Nhan vien tu tra cuu va sua Noi GD qua man hinh tim kiem ($oldMarket -> $newMarket)"
+                $redirectCode = $code
+
+                if ($item) {
+                    # Gom TAT CA thay doi thuc su (gia tri moi khac gia tri cu) vao 1 danh
+                    # sach duy nhat, de gui 1 mail duy nhat liet ke day du - khong chi rieng
+                    # Noi GD nhu truoc.
+                    $changes = New-Object System.Collections.Generic.List[string]
+                    $marketChanged = $false
+
+                    # --- Noi GD: giu nguyen dung logic "muc 2 CR - xu ly ma chuyen san" ---
+                    $newMarket = $form["noigd"]
+                    if ($newMarket -and $newMarket -ne $item.Market) {
+                        $oldMarket = $item.Market
+                        $item | Add-Member -NotePropertyName TraCuuChuyenSan -NotePropertyValue ([pscustomobject]@{
+                            NoiGDCu   = $oldMarket
+                            NoiGDMoi  = $newMarket
+                            TraCuuLuc = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+                        }) -Force
+                        $item.Market = $newMarket
+                        $changes.Add("Nơi GD: $oldMarket -> $newMarket")
+                        $marketChanged = $true
+                    }
+
+                    # --- Cac truong sua truc tiep, khong keo theo luong duyet ---
+                    $oldManagementArea = $item.ManagementArea
+                    if ($form["noiluuky"] -and $form["noiluuky"] -ne $oldManagementArea) {
+                        $item | Add-Member -NotePropertyName ManagementArea -NotePropertyValue $form["noiluuky"] -Force
+                        $changes.Add("Nơi lưu ký: $oldManagementArea -> $($form["noiluuky"])")
+                    }
+                    $oldStockType = $item.StockType
+                    if ($form["loaick"] -and $form["loaick"] -ne $oldStockType) {
+                        $item | Add-Member -NotePropertyName StockType -NotePropertyValue $form["loaick"] -Force
+                        $changes.Add("Loại chứng khoán: $oldStockType -> $($form["loaick"])")
+                    }
+                    if ($form["loaitraiphieu"] -and $item.Tabs -and $item.Tabs.ChungKhoan -and $form["loaitraiphieu"] -ne $item.Tabs.ChungKhoan.LoaiTraiPhieu) {
+                        $oldLoaiTP = $item.Tabs.ChungKhoan.LoaiTraiPhieu
+                        $item.Tabs.ChungKhoan.LoaiTraiPhieu = $form["loaitraiphieu"]
+                        $changes.Add("Loại trái phiếu: $oldLoaiTP -> $($form["loaitraiphieu"])")
+                    }
+                    $oldMaQuiUoc = if ($item.MaQuiUocOverride) { $item.MaQuiUocOverride } else { Get-SyntheticId -Code $item.Code -Seed 17 }
+                    if ($form["maquiuoc"] -and $form["maquiuoc"] -ne $oldMaQuiUoc) {
+                        $item | Add-Member -NotePropertyName MaQuiUocOverride -NotePropertyValue $form["maquiuoc"] -Force
+                        $changes.Add("Mã qui ước: $oldMaQuiUoc -> $($form["maquiuoc"])")
+                    }
+                    $oldMaTcph = if ($item.MaTCPHOverride) { $item.MaTCPHOverride } else { Get-SyntheticId -Code $item.Code -Seed 31 }
+                    if ($form["matcph"] -and $form["matcph"] -ne $oldMaTcph) {
+                        $item | Add-Member -NotePropertyName MaTCPHOverride -NotePropertyValue $form["matcph"] -Force
+                        $changes.Add("Mã TCPH: $oldMaTcph -> $($form["matcph"])")
+                    }
+
+                    # --- Sua Ma chung khoan (doi ten khoa chinh) - lam SAU CUNG, kiem tra trung ---
+                    $newCode = $form["code"]
+                    if ($newCode -and $newCode -ne $item.Code) {
+                        $conflict = $flex | Where-Object { $_.Code -eq $newCode }
+                        if (-not $conflict) {
+                            $oldCode = $item.Code
+                            $item.Code = $newCode
+                            if ($item.Tabs -and $item.Tabs.TTChung -and $item.Tabs.TTChung.MaCK) { $item.Tabs.TTChung.MaCK = $newCode }
+                            if ($item.Tabs -and $item.Tabs.ChungKhoan -and $item.Tabs.ChungKhoan.MaCK) { $item.Tabs.ChungKhoan.MaCK = $newCode }
+                            $changes.Add("Mã chứng khoán: $oldCode -> $newCode")
+                            $redirectCode = $newCode
+                        } else {
+                            Write-Warning "Ma '$newCode' da ton tai - bo qua doi ten, cac truong khac van duoc luu."
+                        }
+                    }
+
+                    if ($changes.Count -gt 0) {
+                        $hanhDong = "Nhân viên sửa qua màn hình Sửa:`n$($changes -join "`n")"
+                        if ($marketChanged) {
+                            # Muc 2 CR: doi Noi GD phai quay lai cho duyet tab Chung khoan
+                            Set-FlexStatus -Item $item -NewStatus "Chờ duyệt Chứng khoán" -HanhDong $hanhDong
+                        } else {
+                            # Cac truong khac: chi ghi log, KHONG doi trang thai/luong duyet
+                            $entry = [pscustomobject]@{ ThoiGian = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss"); HanhDong = $hanhDong; TrangThai = $item.Status }
+                            $existing = @(if ($item.LichSuDuyet) { $item.LichSuDuyet } else { @() })
+                            $newHistory = $existing + @($entry)
+                            if ($item.PSObject.Properties['LichSuDuyet']) { $item.LichSuDuyet = $newHistory }
+                            else { $item | Add-Member -NotePropertyName LichSuDuyet -NotePropertyValue $newHistory -Force }
+                        }
+                        Save-FlexStore -Path $FlexStorePath -Data $flex
+                        Send-ApproveNotice -Code $redirectCode -NewStatus $item.Status -HanhDong $hanhDong
+                    }
                 }
-                Redirect-To -Response $response -Location "/view-security?code=$([System.Uri]::EscapeDataString($code))&q=$([System.Uri]::EscapeDataString($code))"
+                Redirect-To -Response $response -Location "/view-security?code=$([System.Uri]::EscapeDataString($redirectCode))&q=$([System.Uri]::EscapeDataString($redirectCode))"
                 continue
             }
 
